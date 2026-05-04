@@ -4,47 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alma en Peña · Albaranes ECI</title>
-<script src="https://cdn.tailwindcss.com">
-  // ====== ADMIN HANDLERS ======
-  $("#btn-admin-add").onclick = () => {
-    $("#admin-edit-id").value = "";
-    $("#admin-email").value = "";
-    $("#admin-email").disabled = false;
-    $("#admin-nombre").value = "";
-    $("#admin-centro").value = "";
-    $("#admin-es-central").checked = false;
-    $("#admin-es-admin").checked = false;
-    $("#admin-form").classList.remove("hidden");
-  };
-
-  $("#btn-admin-cancel").onclick = () => {
-    $("#admin-form").classList.add("hidden");
-  };
-
-  $("#btn-admin-save").onclick = async () => {
-    const editId = $("#admin-edit-id").value;
-    const email = $("#admin-email").value.trim();
-    const nombre = $("#admin-nombre").value.trim() || null;
-    const centro_id = $("#admin-centro").value || null;
-    const es_central = $("#admin-es-central").checked;
-    const es_admin = $("#admin-es-admin").checked;
-
-    if (!email) { showToast("El email es obligatorio", "error"); return; }
-
-    if (editId) {
-      const { error } = await sb.from("mapeo_usuarios").update({ nombre, centro_id, es_central, es_admin }).eq("id", editId);
-      if (error) { showToast("Error: " + error.message, "error"); return; }
-      showToast("Usuario actualizado");
-    } else {
-      const { error } = await sb.from("mapeo_usuarios").insert({ email, nombre, centro_id, es_central, es_admin });
-      if (error) { showToast("Error: " + error.message, "error"); return; }
-      showToast("Usuario creado");
-    }
-    $("#admin-form").classList.add("hidden");
-    await renderAdmin();
-  };
-
-</script>
+<script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="./config.js"></script>
@@ -1086,6 +1046,47 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('screen-login');
       });
   });
+
+  // ====== ADMIN HANDLERS ======
+  $("#btn-admin-add").onclick = () => {
+    $("#admin-edit-id").value = "";
+    $("#admin-email").value = "";
+    $("#admin-email").disabled = false;
+    $("#admin-nombre").value = "";
+    $("#admin-centro").value = "";
+    $("#admin-es-central").checked = false;
+    $("#admin-es-admin").checked = false;
+    $("#admin-form").classList.remove("hidden");
+  };
+
+  $("#btn-admin-cancel").onclick = () => {
+    $("#admin-form").classList.add("hidden");
+  };
+
+  $("#btn-admin-save").onclick = async () => {
+    const editId = $("#admin-edit-id").value;
+    const email = $("#admin-email").value.trim();
+    const nombre = $("#admin-nombre").value.trim() || null;
+    const centro_id = $("#admin-centro").value || null;
+    const es_central = $("#admin-es-central").checked;
+    const es_admin = $("#admin-es-admin").checked;
+
+    if (!email) { showToast("El email es obligatorio", "error"); return; }
+
+    if (editId) {
+      const { error } = await sb.from("mapeo_usuarios").update({ nombre, centro_id, es_central, es_admin }).eq("id", editId);
+      if (error) { showToast("Error: " + error.message, "error"); return; }
+      showToast("Usuario actualizado");
+    } else {
+      const { error } = await sb.from("mapeo_usuarios").insert({ email, nombre, centro_id, es_central, es_admin });
+      if (error) { showToast("Error: " + error.message, "error"); return; }
+      showToast("Usuario creado");
+    }
+    $("#admin-form").classList.add("hidden");
+    await renderAdmin();
+  };
+
+
 </script>
 </body>
 </html>
