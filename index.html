@@ -902,4 +902,18 @@ function showToast(msg, kind = "ok") {
 // =====================================================
 // GO!
 // =====================================================
-init();
+document.addEventListener('DOMContentLoaded', () => {
+    // Safety timeout: if init doesn't resolve in 8s, show login
+    const safetyTimeout = setTimeout(() => {
+      console.warn('init() timeout - forcing login screen');
+      showScreen('screen-login');
+    }, 8000);
+
+    init()
+      .then(() => clearTimeout(safetyTimeout))
+      .catch(err => {
+        console.error('init() failed:', err);
+        clearTimeout(safetyTimeout);
+        showScreen('screen-login');
+      });
+  });
