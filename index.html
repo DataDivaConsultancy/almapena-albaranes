@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alma en Peña · Albaranes ECI</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="./config.js"></script>
 <style>
@@ -239,7 +239,7 @@ if (!window.ALMAPENYA_CONFIG || window.ALMAPENYA_CONFIG.SUPABASE_URL.includes("T
   throw new Error("Config faltante");
 }
 
-const supabase = window.supabase.createClient(
+const sb = window.supabase.createClient(
   window.ALMAPENYA_CONFIG.SUPABASE_URL,
   window.ALMAPENYA_CONFIG.SUPABASE_ANON_KEY
 );
@@ -268,7 +268,7 @@ const state = {
 // =====================================================
 async function init() {
   showScreen("screen-loading");
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();
   if (!session) {
     showScreen("screen-login");
     return;
@@ -276,7 +276,7 @@ async function init() {
   await onLoggedIn(session.user);
 }
 
-supabase.auth.onAuthStateChange(async (event, session) => {
+sb.auth.onAuthStateChange(async (event, session) => {
   if (event === "SIGNED_IN" && session) {
     await onLoggedIn(session.user);
   }
@@ -290,7 +290,7 @@ async function onLoggedIn(user) {
   state.user = user;
   state.email = user.email;
 
-  const { data: mapeo, error } = await supabase
+  const { data: mapeo, error } = await sb
     .from("mapeo_usuarios")
     .select("centro_id, es_central, nombre, centros (id, nombre)")
     .ilike("email", user.email)
@@ -299,7 +299,7 @@ async function onLoggedIn(user) {
   if (error || !mapeo) {
     showScreen("screen-login");
     showLoginMsg(`Tu correo (${user.email}) no está dado de alta. Contacta con Horacio.`, "error");
-    await supabase.auth.signOut();
+    await sb.auth.signOut();
     return;
   }
 
@@ -317,7 +317,7 @@ $("#form-login").addEventListener("submit", async (ev) => {
   if (!email) return;
   $("#btn-login").disabled = true;
   $("#btn-login").innerHTML = '<span class="spinner"></span> Enviando…';
-  const { error } = await supabase.auth.signInWithOtp({
+  const { error } = await sb.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: window.ALMAPENYA_CONFIG.APP_URL },
   });
@@ -331,7 +331,7 @@ $("#form-login").addEventListener("submit", async (ev) => {
 });
 
 $("#btn-logout").addEventListener("click", async () => {
-  await supabase.auth.signOut();
+  await sb.auth.signOut();
 });
 
 function showLoginMsg(msg, kind = "ok") {
@@ -351,12 +351,12 @@ function showScreen(id) {
 // CARGA DE DATOS COMÚN
 // =====================================================
 async function cargarCentros() {
-  const { data } = await supabase.from("centros").select("*").eq("activo", true).order("nombre");
+  const { data } = await sb.from("centros").select("*").eq("activo", true).order("nombre");
   state.centros = data || [];
 }
 
 async function cargarEnvios() {
-  let q = supabase.from("albaranes_con_total")
+  let q = sb.from("albaranes_con_total")
     .select("*, lineas:lineas_albaran(ean, referencia, cantidad)")
     .eq("tipo", "ENVIO")
     .order("fecha_envio", { ascending: false });
@@ -366,7 +366,7 @@ async function cargarEnvios() {
 }
 
 async function cargarDevoluciones() {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from("devoluciones")
     .select("*, centros(nombre), lineas:lineas_devolucion(ean, cantidad)")
     .order("fecha", { ascending: false });
@@ -375,7 +375,7 @@ async function cargarDevoluciones() {
 }
 
 async function cargarTraspasos() {
-  const { data, error } = await supabase.from("albaranes_con_total")
+  const { data, error } = await sb.from("albaranes_con_total")
     .select("*, lineas:lineas_albaran(ean, referencia, cantidad)")
     .eq("tipo", "TRASPASO")
     .order("fecha_envio", { ascending: false });
@@ -555,7 +555,7 @@ $("#file-excel").addEventListener("change", async (ev) => {
     let okCount = 0, errCount = 0;
     for (const alb of Object.values(agrupados)) {
       const { lineas, ...cabecera } = alb;
-      const { data: existing } = await supabase.from("albaranes")
+      const { data: existing } = await sb.from("albaranes")
         .select("id, fecha_recepcion")
         .eq("num_albaran", cabecera.num_albaran)
         .maybeSingle();
@@ -563,20 +563,20 @@ $("#file-excel").addEventListener("change", async (ev) => {
       let albId;
       if (existing) {
         // No tocamos fecha_recepcion ni incidencia si ya estaba
-        const { error } = await supabase.from("albaranes")
+        const { error } = await sb.from("albaranes")
           .update({ fecha_envio: cabecera.fecha_envio, centro_destino_id: cabecera.centro_destino_id })
           .eq("id", existing.id);
         if (error) { errCount++; continue; }
         albId = existing.id;
         // Borrar líneas viejas
-        await supabase.from("lineas_albaran").delete().eq("albaran_id", albId);
+        await sb.from("lineas_albaran").delete().eq("albaran_id", albId);
       } else {
-        const { data, error } = await supabase.from("albaranes").insert(cabecera).select("id").single();
+        const { data, error } = await sb.from("albaranes").insert(cabecera).select("id").single();
         if (error) { errCount++; continue; }
         albId = data.id;
       }
       const lineasInsert = lineas.map(l => ({ ...l, albaran_id: albId }));
-      const { error: linError } = await supabase.from("lineas_albaran").insert(lineasInsert);
+      const { error: linError } = await sb.from("lineas_albaran").insert(lineasInsert);
       if (linError) errCount++; else okCount++;
     }
 
@@ -650,7 +650,7 @@ function renderCentralDevoluciones() {
     lista.appendChild(det);
   });
   $$(".btn-mark-sent").forEach(b => b.onclick = async () => {
-    const { error } = await supabase.from("devoluciones").update({ estado: "ENVIADO_ALMACEN" }).eq("id", b.dataset.id);
+    const { error } = await sb.from("devoluciones").update({ estado: "ENVIADO_ALMACEN" }).eq("id", b.dataset.id);
     if (error) showToast("✗ " + error.message, "error");
     else { showToast("✓ Marcada como enviada"); await cargarDevoluciones(); renderCentralDevoluciones(); }
   });
@@ -743,7 +743,7 @@ $("#btn-rec-confirm").onclick = async () => {
   if (!fecha) { showToast("Indica la fecha de recepción", "error"); return; }
   const incidencia = $("#rec-incidencia").value.trim() || null;
   const ids = [...recepcionSeleccion];
-  const { error } = await supabase.from("albaranes").update({
+  const { error } = await sb.from("albaranes").update({
     fecha_recepcion: fecha, estado: "CONFIRMADO",
     incidencia, recepcionado_por: state.email,
   }).in("id", ids);
@@ -811,18 +811,18 @@ $("#btn-dev-enviar").onclick = async () => {
   if (scanList.length === 0) return;
   // Generar nº correlativo del día
   const fecha = today();
-  const { count } = await supabase.from("devoluciones").select("*", { count: "exact", head: true })
+  const { count } = await sb.from("devoluciones").select("*", { count: "exact", head: true })
     .eq("fecha", fecha).eq("centro_id", state.centroId);
   const num = `DEV-${fecha.replaceAll("-","")}-${String((count||0)+1).padStart(3,"0")}`;
 
-  const { data: dev, error: err1 } = await supabase.from("devoluciones").insert({
+  const { data: dev, error: err1 } = await sb.from("devoluciones").insert({
     num_devolucion: num, centro_id: state.centroId, fecha,
     estado: "PENDIENTE_ALMACEN", creado_por: state.email,
   }).select("id").single();
   if (err1) { showToast("✗ " + err1.message, "error"); return; }
 
   const lineas = scanList.map(r => ({ devolucion_id: dev.id, ean: r.ean, cantidad: r.cantidad }));
-  const { error: err2 } = await supabase.from("lineas_devolucion").insert(lineas);
+  const { error: err2 } = await sb.from("lineas_devolucion").insert(lineas);
   if (err2) { showToast("✗ " + err2.message, "error"); return; }
 
   showToast(`✓ Devolución ${num} enviada (${scanList.reduce((s,r)=>s+r.cantidad,0)} uds)`);
@@ -834,7 +834,7 @@ $("#btn-dev-enviar").onclick = async () => {
 // =====================================================
 async function renderTraspaso() {
   const año = new Date().getFullYear();
-  const { count } = await supabase.from("albaranes").select("*", { count: "exact", head: true })
+  const { count } = await sb.from("albaranes").select("*", { count: "exact", head: true })
     .eq("tipo", "TRASPASO");
   $("#tr-num").value = `TRA-${año}-${String((count||0)+1).padStart(4,"0")}`;
   $("#tr-fecha").value = today();
@@ -870,7 +870,7 @@ $("#btn-tr-save").onclick = async () => {
   })).filter(l => l.ean && l.cantidad > 0);
   if (lineas.length === 0) { showToast("Añade al menos una línea con cantidad", "error"); return; }
   const num = $("#tr-num").value;
-  const { data: alb, error: err1 } = await supabase.from("albaranes").insert({
+  const { data: alb, error: err1 } = await sb.from("albaranes").insert({
     num_albaran: num, tipo: "TRASPASO",
     fecha_envio: $("#tr-fecha").value,
     centro_origen_id: state.centroId,
@@ -880,7 +880,7 @@ $("#btn-tr-save").onclick = async () => {
   if (err1) { showToast("✗ " + err1.message, "error"); return; }
 
   const lineasInsert = lineas.map(l => ({ ...l, albaran_id: alb.id }));
-  const { error: err2 } = await supabase.from("lineas_albaran").insert(lineasInsert);
+  const { error: err2 } = await sb.from("lineas_albaran").insert(lineasInsert);
   if (err2) { showToast("✗ " + err2.message, "error"); return; }
 
   showToast(`✓ Traspaso ${num} guardado`);
@@ -903,6 +903,3 @@ function showToast(msg, kind = "ok") {
 // GO!
 // =====================================================
 init();
-</script>
-</body>
-</html>
