@@ -4,7 +4,47 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alma en Peña · Albaranes ECI</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.tailwindcss.com">
+  // ====== ADMIN HANDLERS ======
+  $("#btn-admin-add").onclick = () => {
+    $("#admin-edit-id").value = "";
+    $("#admin-email").value = "";
+    $("#admin-email").disabled = false;
+    $("#admin-nombre").value = "";
+    $("#admin-centro").value = "";
+    $("#admin-es-central").checked = false;
+    $("#admin-es-admin").checked = false;
+    $("#admin-form").classList.remove("hidden");
+  };
+
+  $("#btn-admin-cancel").onclick = () => {
+    $("#admin-form").classList.add("hidden");
+  };
+
+  $("#btn-admin-save").onclick = async () => {
+    const editId = $("#admin-edit-id").value;
+    const email = $("#admin-email").value.trim();
+    const nombre = $("#admin-nombre").value.trim() || null;
+    const centro_id = $("#admin-centro").value || null;
+    const es_central = $("#admin-es-central").checked;
+    const es_admin = $("#admin-es-admin").checked;
+
+    if (!email) { showToast("El email es obligatorio", "error"); return; }
+
+    if (editId) {
+      const { error } = await sb.from("mapeo_usuarios").update({ nombre, centro_id, es_central, es_admin }).eq("id", editId);
+      if (error) { showToast("Error: " + error.message, "error"); return; }
+      showToast("Usuario actualizado");
+    } else {
+      const { error } = await sb.from("mapeo_usuarios").insert({ email, nombre, centro_id, es_central, es_admin });
+      if (error) { showToast("Error: " + error.message, "error"); return; }
+      showToast("Usuario creado");
+    }
+    $("#admin-form").classList.add("hidden");
+    await renderAdmin();
+  };
+
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="./config.js"></script>
@@ -219,6 +259,60 @@
   </div>
 
   <!-- Toast -->
+
+    <!-- ----- ADMIN: Gestión usuarios ----- -->
+    <div id="tab-admin" class="tab-pane bg-white rounded-2xl border border-stone-200 p-4 hidden">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-base font-medium text-stone-900">Gestión de usuarios</h3>
+          <p class="text-xs text-stone-500">Dar de alta, editar y asignar centros a los usuarios</p>
+        </div>
+        <button id="btn-admin-add" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          Nuevo usuario
+        </button>
+      </div>
+
+      <div id="admin-form" class="hidden mb-4 bg-stone-50 border border-stone-200 rounded-xl p-4">
+        <input type="hidden" id="admin-edit-id" value="">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="block text-xs text-stone-500 mb-1">Email *</label>
+            <input id="admin-email" type="email" placeholder="correo@almaenpena.es"
+                   class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+          </div>
+          <div>
+            <label class="block text-xs text-stone-500 mb-1">Nombre</label>
+            <input id="admin-nombre" type="text" placeholder="Nombre (opcional)"
+                   class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="block text-xs text-stone-500 mb-1">Centro asignado</label>
+            <select id="admin-centro" class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white">
+              <option value="">— Sin centro (oficina central) —</option>
+            </select>
+          </div>
+          <div class="flex items-end gap-4 pb-1">
+            <label class="inline-flex items-center gap-1.5 text-sm text-stone-700">
+              <input id="admin-es-central" type="checkbox" class="rounded border-stone-300"> Central
+            </label>
+            <label class="inline-flex items-center gap-1.5 text-sm text-stone-700">
+              <input id="admin-es-admin" type="checkbox" class="rounded border-stone-300"> Admin
+            </label>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button id="btn-admin-cancel" class="text-sm px-3 py-2 border border-stone-200 rounded-lg hover:bg-white">Cancelar</button>
+          <button id="btn-admin-save" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">Guardar</button>
+        </div>
+      </div>
+
+      <div id="admin-users-list" class="flex flex-col gap-2"></div>
+      <div id="admin-users-vacio" class="text-center py-10 text-sm text-stone-400 hidden">No hay usuarios registrados.</div>
+    </div>
+
   <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-lg shadow-lg text-sm hidden flex items-center gap-2 z-50"></div>
 
 </div>
@@ -253,7 +347,7 @@ const escapeHtml = s => String(s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<"
 const state = {
   user: null,
   email: null,
-  esCentral: false,
+  esCentral: false, esAdmin: false,
   centroId: null,
   centroNombre: "—",
   centros: [],
@@ -292,7 +386,7 @@ async function onLoggedIn(user) {
 
   const { data: mapeo, error } = await sb
     .from("mapeo_usuarios")
-    .select("centro_id, es_central, nombre, centros (id, nombre)")
+    .select("centro_id, es_central, es_admin, nombre, centros (id, nombre)")
     .ilike("email", user.email)
     .maybeSingle();
 
@@ -304,6 +398,7 @@ async function onLoggedIn(user) {
   }
 
   state.esCentral    = mapeo.es_central;
+  state.esAdmin      = !!mapeo.es_admin;
   state.centroId     = mapeo.centro_id;
   state.centroNombre = mapeo.centros ? mapeo.centros.nombre : "Oficina central";
 
@@ -388,10 +483,11 @@ async function cargarTraspasos() {
 // =====================================================
 function renderApp() {
   showScreen("screen-app");
-  if (state.esCentral) {
-    $("#rol-badge").textContent = "CENTRAL";
-    $("#rol-badge").className = "text-[10px] font-medium tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-800";
-    $("#header-centro").textContent = "Oficina central";
+  if (state.esCentral || state.esAdmin) {
+    $("#rol-badge").textContent = state.esAdmin ? "SUPERADMIN" : "CENTRAL";
+    $("#rol-badge").className = "text-[10px] font-medium tracking-wider px-2 py-0.5 rounded-full " +
+      (state.esAdmin ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800");
+    $("#header-centro").textContent = state.esAdmin ? "Superadministrador" : "Oficina central";
     $("#header-sub").textContent = state.email;
   } else {
     $("#rol-badge").textContent = "CENTRO";
@@ -411,6 +507,9 @@ function renderApp() {
         { id: "centro-devolucion", label: "Devolución" },
         { id: "centro-traspaso",   label: "Traspaso" },
       ];
+  if (state.esAdmin) {
+    tabs.push({ id: "admin", label: "Admin" });
+  }
   const tabsContainer = $("#tabs"); tabsContainer.innerHTML = "";
   tabs.forEach((t, i) => {
     const b = document.createElement("button");
@@ -423,12 +522,82 @@ function renderApp() {
   activateTab(tabs[0].id);
 }
 
+
+async function renderAdmin() {
+  const selCentro = $("#admin-centro");
+  selCentro.innerHTML = '<option value="">— Sin centro (oficina central) —</option>';
+  state.centros.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.id;
+    o.textContent = c.nombre;
+    selCentro.appendChild(o);
+  });
+  $("#admin-form").classList.add("hidden");
+
+  const { data: users, error } = await sb
+    .from("mapeo_usuarios")
+    .select("id, email, nombre, centro_id, es_central, es_admin, centros(nombre)")
+    .order("email");
+
+  const list = $("#admin-users-list");
+  list.innerHTML = "";
+
+  if (!users || users.length === 0) {
+    $("#admin-users-vacio").classList.remove("hidden");
+    return;
+  }
+  $("#admin-users-vacio").classList.add("hidden");
+
+  users.forEach(u => {
+    const rolLabel = u.es_admin ? "SUPERADMIN" : u.es_central ? "CENTRAL" : "CENTRO";
+    const rolColor = u.es_admin ? "bg-purple-100 text-purple-800" : u.es_central ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800";
+    const centroName = u.centros ? u.centros.nombre : (u.es_central || u.es_admin ? "Oficina central" : "—");
+
+    const row = document.createElement("div");
+    row.className = "flex items-center justify-between bg-stone-50 border border-stone-100 rounded-lg px-3 py-2";
+    row.innerHTML = `
+      <div class="min-w-0">
+        <div class="text-sm font-medium text-stone-900 truncate">${u.email}</div>
+        <div class="text-xs text-stone-500">${centroName}${u.nombre ? ' · ' + u.nombre : ''}</div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="text-[10px] font-medium tracking-wider px-2 py-0.5 rounded-full ${rolColor}">${rolLabel}</span>
+        <button class="admin-edit text-xs text-blue-600 hover:underline" data-id="${u.id}" data-email="${u.email}" data-nombre="${u.nombre || ''}" data-centro="${u.centro_id || ''}" data-central="${u.es_central}" data-admin="${u.es_admin}">Editar</button>
+        <button class="admin-del text-xs text-red-500 hover:underline" data-id="${u.id}" data-email="${u.email}">Eliminar</button>
+      </div>`;
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll(".admin-edit").forEach(btn => {
+    btn.onclick = () => {
+      $("#admin-edit-id").value = btn.dataset.id;
+      $("#admin-email").value = btn.dataset.email;
+      $("#admin-email").disabled = true;
+      $("#admin-nombre").value = btn.dataset.nombre;
+      $("#admin-centro").value = btn.dataset.centro;
+      $("#admin-es-central").checked = btn.dataset.central === "true";
+      $("#admin-es-admin").checked = btn.dataset.admin === "true";
+      $("#admin-form").classList.remove("hidden");
+    };
+  });
+
+  list.querySelectorAll(".admin-del").forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm("Eliminar usuario " + btn.dataset.email + "?")) return;
+      await sb.from("mapeo_usuarios").delete().eq("id", btn.dataset.id);
+      showToast("Usuario eliminado");
+      await renderAdmin();
+    };
+  });
+}
+
 async function activateTab(id) {
   $$(".tab-btn").forEach(b => b.className = "tab-btn px-3 py-1.5 text-sm rounded-lg border " + (b.dataset.tab === id ? "tab-active" : "tab-inactive"));
   $$(".tab-pane").forEach(p => p.classList.add("hidden"));
   $("#tab-" + id).classList.remove("hidden");
   $("#tab-" + id).classList.add("fade-in");
 
+  if (id === "admin") { await renderAdmin(); }
   if (id === "central-envios")        { await cargarEnvios(); renderCentralEnvios(); }
   if (id === "central-devoluciones")  { await cargarDevoluciones(); renderCentralDevoluciones(); }
   if (id === "central-traspasos")     { await cargarTraspasos(); renderCentralTraspasos(); }
