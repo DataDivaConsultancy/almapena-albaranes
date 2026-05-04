@@ -451,14 +451,7 @@ $("#form-login").onsubmit = async e => {
       setTimeout(() => window.location.href = window.location.pathname, 1500);
     }
     $("#login-msg").classList.remove("hidden");
-  };$("#btn-login").disabled = false;
-  $("#btn-login").innerHTML = "Recibir enlace de acceso";
-  if (error) {
-    showLoginMsg("✗ " + error.message, "error");
-  } else {
-    showLoginMsg(`✓ Te hemos enviado un enlace a ${email}. Revisa tu bandeja.`, "ok");
-  }
-});
+  };
 
 $("#btn-logout").addEventListener("click", async () => {
   await sb.auth.signOut();
