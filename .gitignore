@@ -1,0 +1,21 @@
+# NUNCA subir config con claves reales (la anon key es pública pero la URL del
+# proyecto es información sensible que mejor no exponer en el repo).
+config.js
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dependencias (la app no las necesita, pero por si añades algo en el futuro)
+node_modules/
