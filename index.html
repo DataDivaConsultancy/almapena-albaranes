@@ -1452,7 +1452,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v21</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v22</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1557,24 +1557,52 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     const inp = $("#inv-scan-input");
     if (inp) {
-      // Estrategia v21: peel EAN-13 instantaneo. Cada 13 digitos = un scan.
-      // Funciona aunque vengan pegados (26, 39, 52 caracteres seguidos).
+      let invAudioCtx = null;
+      const beep = (freq, durMs, vol) => {
+        try {
+          if (!invAudioCtx) invAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = invAudioCtx.createOscillator();
+          const gain = invAudioCtx.createGain();
+          osc.connect(gain); gain.connect(invAudioCtx.destination);
+          osc.frequency.value = freq;
+          osc.type = 'sine';
+          gain.gain.setValueAtTime(vol, invAudioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, invAudioCtx.currentTime + durMs/1000);
+          osc.start();
+          osc.stop(invAudioCtx.currentTime + durMs/1000);
+        } catch(e) {}
+      };
+      const beepOk = () => beep(880, 80, 0.15);
+      const beepError = () => { beep(180, 250, 0.3); setTimeout(() => beep(140, 250, 0.3), 120); };
+
+      let invPartialTimer = null;
       const peelEans = () => {
+        clearTimeout(invPartialTimer);
         let v = inp.value.trim();
-        if (!/^[0-9]+$/.test(v)) return;
+        if (!/^[0-9]+$/.test(v)) {
+          if (v.length > 0) { beepError(); inp.value = ""; }
+          return;
+        }
         while (v.length >= 13) {
           invAddScan(v.substring(0, 13));
+          beepOk();
           v = v.substring(13);
         }
-        inp.value = v; // sobrante (<13 digitos) queda en el campo
+        inp.value = v;
+        if (v.length > 0) {
+          invPartialTimer = setTimeout(() => {
+            beepError();
+            inp.value = "";
+          }, 500);
+        }
       };
       inp.addEventListener("input", peelEans);
-      // Enter: para EAN no estandar (8/12/14 digitos) o entrada manual
       inp.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
+          clearTimeout(invPartialTimer);
           const v = inp.value.trim();
-          if (v) { invAddScan(v); inp.value = ""; }
+          if (v) { invAddScan(v); beepOk(); inp.value = ""; }
         }
       });
       inp.addEventListener("paste", () => setTimeout(peelEans, 0));
