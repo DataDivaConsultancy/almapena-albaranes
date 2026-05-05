@@ -1668,18 +1668,16 @@ async function exportInventariosExcel() {
   const { data: invs, error } = await q;
   if (error) { showToast("X " + error.message, "error"); return; }
 
-  const rows = [["Num inventario","Centro","Fecha","Estado","Creado por","Observaciones","EAN","Cantidad"]];
+  const rows = [["Fecha","Centro","EAN","Cantidad"]];
   (invs || []).forEach(i => {
-    const lineas = i.lineas && i.lineas.length ? i.lineas : [{ean:"",cantidad:0}];
-    lineas.forEach(l => {
+    (i.lineas || []).forEach(l => {
       rows.push([
-        i.num_inventario, i.centro_nombre || "", i.fecha || "", i.estado || "",
-        i.creado_por || "", i.observaciones || "", l.ean || "", l.cantidad || 0,
+        i.fecha || "", i.centro_nombre || "", l.ean || "", l.cantidad || 0,
       ]);
     });
   });
   const ws = XLSX.utils.aoa_to_sheet(rows);
-  ws["!cols"] = [{wch:20},{wch:32},{wch:12},{wch:12},{wch:28},{wch:30},{wch:16},{wch:8}];
+  ws["!cols"] = [{wch:12},{wch:32},{wch:16},{wch:8}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Inventarios");
   XLSX.writeFile(wb, "AlmaEnPena_Inventarios_" + today() + ".xlsx");
