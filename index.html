@@ -219,59 +219,146 @@
 
   <!-- Toast -->
 
-    <!-- ----- ADMIN: Gestión usuarios ----- -->
+    <!-- ----- ADMIN: Gestión usuarios + centros ----- -->
     <div id="tab-admin" class="tab-pane bg-white rounded-2xl border border-stone-200 p-4 hidden">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h3 class="text-base font-medium text-stone-900">Gestión de usuarios</h3>
-          <p class="text-xs text-stone-500">Dar de alta, editar y asignar centros a los usuarios</p>
-        </div>
-        <button id="btn-admin-add" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-          Nuevo usuario
+
+      <!-- Sub-tabs Usuarios / Centros -->
+      <div class="bg-stone-100 p-1 rounded-xl inline-flex gap-1 mb-4">
+        <button type="button" id="subtab-usuarios"
+          class="text-sm font-medium py-1.5 px-4 rounded-lg bg-white shadow-sm text-stone-900">
+          Usuarios
+        </button>
+        <button type="button" id="subtab-centros"
+          class="text-sm font-medium py-1.5 px-4 rounded-lg text-stone-600 hover:text-stone-900">
+          Centros
         </button>
       </div>
 
-      <div id="admin-form" class="hidden mb-4 bg-stone-50 border border-stone-200 rounded-xl p-4">
-        <input type="hidden" id="admin-edit-id" value="">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+      <!-- ===== USUARIOS ===== -->
+      <div id="admin-pane-usuarios">
+        <div class="flex items-center justify-between mb-4">
           <div>
-            <label class="block text-xs text-stone-500 mb-1">Email *</label>
-            <input id="admin-email" type="email" placeholder="correo@almaenpena.es"
-                   class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+            <h3 class="text-base font-medium text-stone-900">Gestión de usuarios</h3>
+            <p class="text-xs text-stone-500">Dar de alta, editar y asignar centros a los usuarios</p>
           </div>
-          <div>
-            <label class="block text-xs text-stone-500 mb-1">Nombre</label>
-            <input id="admin-nombre" type="text" placeholder="Nombre (opcional)"
-                   class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+          <button id="btn-admin-add" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo usuario
+          </button>
+        </div>
+
+        <div id="admin-form" class="hidden mb-4 bg-stone-50 border border-stone-200 rounded-xl p-4">
+          <input type="hidden" id="admin-edit-id" value="">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="block text-xs text-stone-500 mb-1">Email *</label>
+              <input id="admin-email" type="email" placeholder="correo@almaenpena.es"
+                     class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+            </div>
+            <div>
+              <label class="block text-xs text-stone-500 mb-1">Nombre</label>
+              <input id="admin-nombre" type="text" placeholder="Nombre (opcional)"
+                     class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="block text-xs text-stone-500 mb-1">Centro asignado</label>
+              <select id="admin-centro" class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white">
+                <option value="">— Sin centro (oficina central) —</option>
+              </select>
+            </div>
+            <div class="flex items-end gap-4 pb-1">
+              <label class="inline-flex items-center gap-1.5 text-sm text-stone-700">
+                <input id="admin-es-central" type="checkbox" class="rounded border-stone-300"> Central
+              </label>
+              <label class="inline-flex items-center gap-1.5 text-sm text-stone-700">
+                <input id="admin-es-admin" type="checkbox" class="rounded border-stone-300"> Admin
+              </label>
+            </div>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button id="btn-admin-cancel" class="text-sm px-3 py-2 border border-stone-200 rounded-lg hover:bg-white">Cancelar</button>
+            <button id="btn-admin-save" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">Guardar</button>
           </div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-          <div>
-            <label class="block text-xs text-stone-500 mb-1">Centro asignado</label>
-            <select id="admin-centro" class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white">
-              <option value="">— Sin centro (oficina central) —</option>
-            </select>
-          </div>
-          <div class="flex items-end gap-4 pb-1">
-            <label class="inline-flex items-center gap-1.5 text-sm text-stone-700">
-              <input id="admin-es-central" type="checkbox" class="rounded border-stone-300"> Central
-            </label>
-            <label class="inline-flex items-center gap-1.5 text-sm text-stone-700">
-              <input id="admin-es-admin" type="checkbox" class="rounded border-stone-300"> Admin
-            </label>
-          </div>
-        </div>
-        <div class="flex justify-end gap-2">
-          <button id="btn-admin-cancel" class="text-sm px-3 py-2 border border-stone-200 rounded-lg hover:bg-white">Cancelar</button>
-          <button id="btn-admin-save" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">Guardar</button>
-        </div>
+
+        <div id="admin-users-list" class="flex flex-col gap-2"></div>
+        <div id="admin-users-vacio" class="text-center py-10 text-sm text-stone-400 hidden">No hay usuarios registrados.</div>
       </div>
 
-      <div id="admin-users-list" class="flex flex-col gap-2"></div>
-      <div id="admin-users-vacio" class="text-center py-10 text-sm text-stone-400 hidden">No hay usuarios registrados.</div>
-    </div>
+      <!-- ===== CENTROS ===== -->
+      <div id="admin-pane-centros" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-base font-medium text-stone-900">Gestión de centros</h3>
+            <p class="text-xs text-stone-500">Alta, edición y desactivación de centros (corners ECI)</p>
+          </div>
+          <button id="btn-centro-add" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            Nuevo centro
+          </button>
+        </div>
 
+        <div id="centro-form" class="hidden mb-4 bg-stone-50 border border-stone-200 rounded-xl p-4">
+          <input type="hidden" id="centro-edit-id" value="">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="block text-xs text-stone-500 mb-1">Código *</label>
+              <input id="centro-codigo" type="text" placeholder="ECI-MAD-CAS"
+                     class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-300">
+            </div>
+            <div>
+              <label class="block text-xs text-stone-500 mb-1">Nombre *</label>
+              <input id="centro-nombre" type="text" placeholder="ECI Castellana - Calzado Mujer"
+                     class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="block text-xs text-stone-500 mb-1">Ciudad</label>
+              <input id="centro-ciudad" type="text" placeholder="Madrid"
+                     class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+            </div>
+            <div>
+              <label class="block text-xs text-stone-500 mb-1">Dirección</label>
+              <input id="centro-direccion" type="text" placeholder="Castellana 85"
+                     class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+            <div>
+              <label class="block text-xs text-stone-500 mb-1">Responsable</label>
+              <input id="centro-responsable" type="text" placeholder="Nombre"
+                     class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+            </div>
+            <div>
+              <label class="block text-xs text-stone-500 mb-1">Email</label>
+              <input id="centro-email" type="email" placeholder="centro@almaenpena.es"
+                     class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+            </div>
+            <div>
+              <label class="block text-xs text-stone-500 mb-1">Teléfono</label>
+              <input id="centro-telefono" type="text" placeholder="+34 ..."
+                     class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
+            </div>
+          </div>
+          <div class="flex items-end justify-between gap-3">
+            <label class="inline-flex items-center gap-1.5 text-sm text-stone-700">
+              <input id="centro-activo" type="checkbox" class="rounded border-stone-300" checked> Activo
+            </label>
+            <div class="flex gap-2">
+              <button id="btn-centro-cancel" class="text-sm px-3 py-2 border border-stone-200 rounded-lg hover:bg-white">Cancelar</button>
+              <button id="btn-centro-save" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">Guardar</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="admin-centros-list" class="flex flex-col gap-2"></div>
+        <div id="admin-centros-vacio" class="text-center py-10 text-sm text-stone-400 hidden">No hay centros registrados.</div>
+      </div>
+
+    </div>
   <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-lg shadow-lg text-sm hidden flex items-center gap-2 z-50"></div>
 
 </div>
@@ -570,7 +657,7 @@ async function activateTab(id) {
 }
 
 // =====================================================
-// CENTRAL — ENV�MOS
+// CENTRAL — ENVÍOS
 // =====================================================
 function renderCentralEnvios() {
   const fc = $("#filter-centro");
@@ -1090,6 +1177,127 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
 
+
+// ====== ADMIN: sub-tabs Usuarios/Centros + CRUD centros ======
+function setAdminSubtab(which) {
+  const su = $("#subtab-usuarios"), sc = $("#subtab-centros");
+  if (which === "centros") {
+    sc.className = "text-sm font-medium py-1.5 px-4 rounded-lg bg-white shadow-sm text-stone-900";
+    su.className = "text-sm font-medium py-1.5 px-4 rounded-lg text-stone-600 hover:text-stone-900";
+    $("#admin-pane-usuarios").classList.add("hidden");
+    $("#admin-pane-centros").classList.remove("hidden");
+    renderCentrosAdmin();
+  } else {
+    su.className = "text-sm font-medium py-1.5 px-4 rounded-lg bg-white shadow-sm text-stone-900";
+    sc.className = "text-sm font-medium py-1.5 px-4 rounded-lg text-stone-600 hover:text-stone-900";
+    $("#admin-pane-centros").classList.add("hidden");
+    $("#admin-pane-usuarios").classList.remove("hidden");
+  }
+}
+$("#subtab-usuarios").onclick = () => setAdminSubtab("usuarios");
+$("#subtab-centros").onclick  = () => setAdminSubtab("centros");
+
+async function renderCentrosAdmin() {
+  $("#centro-form").classList.add("hidden");
+  const { data: centros, error } = await sb
+    .from("centros")
+    .select("id, codigo, nombre, ciudad, direccion, responsable, email, telefono, activo")
+    .order("nombre");
+  if (error) { showToast("✗ " + error.message, "error"); return; }
+
+  const list = $("#admin-centros-list"); list.innerHTML = "";
+  if (!centros || centros.length === 0) {
+    $("#admin-centros-vacio").classList.remove("hidden");
+    return;
+  }
+  $("#admin-centros-vacio").classList.add("hidden");
+
+  centros.forEach(c => {
+    const row = document.createElement("div");
+    row.className = "flex items-center justify-between bg-stone-50 border border-stone-100 rounded-lg px-3 py-2";
+    row.innerHTML = `
+      <div class="min-w-0">
+        <div class="text-sm font-medium text-stone-900 truncate flex items-center gap-2">
+          ${escapeHtml(c.nombre)}
+          ${!c.activo ? '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-stone-200 text-stone-600">INACTIVO</span>' : ''}
+        </div>
+        <div class="text-xs text-stone-500 font-mono">${c.codigo}${c.ciudad ? ' · ' + escapeHtml(c.ciudad) : ''}${c.direccion ? ' · ' + escapeHtml(c.direccion) : ''}</div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <button class="centro-edit text-xs text-blue-600 hover:underline" data-id="${c.id}">Editar</button>
+        <button class="centro-toggle text-xs text-stone-600 hover:underline" data-id="${c.id}" data-activo="${c.activo}">${c.activo ? 'Desactivar' : 'Activar'}</button>
+      </div>`;
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll(".centro-edit").forEach(btn => {
+    btn.onclick = () => {
+      const c = centros.find(x => x.id === btn.dataset.id);
+      $("#centro-edit-id").value = c.id;
+      $("#centro-codigo").value = c.codigo || "";
+      $("#centro-nombre").value = c.nombre || "";
+      $("#centro-ciudad").value = c.ciudad || "";
+      $("#centro-direccion").value = c.direccion || "";
+      $("#centro-responsable").value = c.responsable || "";
+      $("#centro-email").value = c.email || "";
+      $("#centro-telefono").value = c.telefono || "";
+      $("#centro-activo").checked = !!c.activo;
+      $("#centro-form").classList.remove("hidden");
+    };
+  });
+
+  list.querySelectorAll(".centro-toggle").forEach(btn => {
+    btn.onclick = async () => {
+      const newActivo = btn.dataset.activo !== "true";
+      const { error } = await sb.from("centros").update({ activo: newActivo }).eq("id", btn.dataset.id);
+      if (error) showToast("✗ " + error.message, "error");
+      else { showToast(newActivo ? "Centro activado" : "Centro desactivado"); await renderCentrosAdmin(); await cargarCentros(); }
+    };
+  });
+}
+
+$("#btn-centro-add").onclick = () => {
+  $("#centro-edit-id").value = "";
+  $("#centro-codigo").value = "";
+  $("#centro-nombre").value = "";
+  $("#centro-ciudad").value = "";
+  $("#centro-direccion").value = "";
+  $("#centro-responsable").value = "";
+  $("#centro-email").value = "";
+  $("#centro-telefono").value = "";
+  $("#centro-activo").checked = true;
+  $("#centro-form").classList.remove("hidden");
+};
+
+$("#btn-centro-cancel").onclick = () => {
+  $("#centro-form").classList.add("hidden");
+};
+
+$("#btn-centro-save").onclick = async () => {
+  const editId = $("#centro-edit-id").value;
+  const payload = {
+    codigo: $("#centro-codigo").value.trim(),
+    nombre: $("#centro-nombre").value.trim(),
+    ciudad: $("#centro-ciudad").value.trim() || null,
+    direccion: $("#centro-direccion").value.trim() || null,
+    responsable: $("#centro-responsable").value.trim() || null,
+    email: $("#centro-email").value.trim() || null,
+    telefono: $("#centro-telefono").value.trim() || null,
+    activo: $("#centro-activo").checked,
+  };
+  if (!payload.codigo || !payload.nombre) {
+    showToast("Código y nombre son obligatorios", "error"); return;
+  }
+  const q = editId
+    ? sb.from("centros").update(payload).eq("id", editId)
+    : sb.from("centros").insert(payload);
+  const { error } = await q;
+  if (error) { showToast("✗ " + error.message, "error"); return; }
+  showToast(editId ? "Centro actualizado" : "Centro creado");
+  $("#centro-form").classList.add("hidden");
+  await renderCentrosAdmin();
+  await cargarCentros();
+};
 </script>
 </body>
 </html>
