@@ -1452,7 +1452,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v25</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v25/26</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1543,13 +1543,22 @@ async function persistInvLine(row) {
   );
 }
 
-function invAddScan(ean) {
-  if (!ean || !invBorradorId) return;
+async function invAddScan(ean) {
+  if (!ean) return;
+  if (!invBorradorId) {
+    console.warn('[INV] invBorradorId null al escanear ' + ean + ', intentando recrear borrador');
+    await loadOrCreateBorrador();
+    if (!invBorradorId) {
+      showToast('✗ No se pudo cargar el borrador. Recarga la pagina.', 'error');
+      return;
+    }
+  }
   const existing = invScanList.find(r => r.ean === ean);
   if (existing) existing.cantidad++;
   else invScanList.unshift({ ean, cantidad: 1 });
   persistInvLine(invScanList.find(r => r.ean === ean));
   pintarInvScan();
+  console.log('[INV] OK +1 ' + ean + ' (total: ' + invScanList.reduce((s,r)=>s+r.cantidad,0) + ' uds)');
 }
 
 document.addEventListener("DOMContentLoaded", () => {
