@@ -1452,7 +1452,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v27</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v28</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1461,33 +1461,65 @@ async function renderInventario() {
 }
 
 async function loadOrCreateBorrador() {
+  console.log('[INV] loadOrCreateBorrador start, centroId=', state.centroId, 'email=', state.email);
+  if (!state.centroId) {
+    showToast('✗ Tu usuario no tiene centro asignado. Pide a Horacio que te asigne uno.', 'error');
+    return;
+  }
   // Buscar BORRADOR del centro actual
-  const { data: borr } = await sb.from("inventarios")
+  const sel = await sb.from("inventarios")
     .select("id, num_inventario, fecha, observaciones, lineas_inventario(ean, cantidad)")
     .eq("centro_id", state.centroId)
     .eq("estado", "BORRADOR")
     .maybeSingle();
+  console.log('[INV] SELECT borrador:', sel);
+  if (sel.error) { showToast('✗ SELECT: ' + sel.error.message, 'error'); return; }
+  const borr = sel.data;
 
   if (borr) {
     invBorradorId = borr.id;
     invScanList = (borr.lineas_inventario || []).map(l => ({ ean: l.ean, cantidad: l.cantidad }));
     $("#inv-observaciones").value = borr.observaciones || "";
     $("#inv-info").innerHTML = '<span class="text-stone-600">Borrador en curso:</span> <span class="font-mono font-medium">' + borr.num_inventario + '</span> \u00b7 fecha ' + fmtFecha(borr.fecha);
+    console.log('[INV] BORRADOR existente cargado:', borr.id, 'lineas:', invScanList.length);
   } else {
-    // Crear nuevo BORRADOR
     const fecha = today();
-    const { count } = await sb.from("inventarios").select("*", { count: "exact", head: true })
+    const cnt = await sb.from("inventarios").select("*", { count: "exact", head: true })
       .eq("fecha", fecha).eq("centro_id", state.centroId);
-    const num = "INV-" + fecha.replaceAll("-","") + "-" + String((count||0)+1).padStart(3,"0");
-    const { data: nuevo, error } = await sb.from("inventarios").insert({
+    console.log('[INV] COUNT del dia:', cnt);
+    const num = "INV-" + fecha.replaceAll("-","") + "-" + String(((cnt && cnt.count)||0)+1).padStart(3,"0");
+    const ins = await sb.from("inventarios").insert({
       num_inventario: num, centro_id: state.centroId, fecha,
       estado: "BORRADOR", creado_por: state.email,
     }).select("id, num_inventario, fecha").single();
-    if (error) { showToast("X " + error.message, "error"); return; }
-    invBorradorId = nuevo.id;
+    console.log('[INV] INSERT result:', ins);
+    if (ins.error) {
+      showToast('✗ INSERT: ' + ins.error.message + ' (code ' + ins.error.code + ')', 'error');
+      console.error('[INV] INSERT failed:', ins.error);
+      // Si fue duplicate key (otro borrador existe), reintentar SELECT
+      if (ins.error.code === '23505') {
+        const retry = await sb.from("inventarios")
+          .select("id, num_inventario, fecha, observaciones, lineas_inventario(ean, cantidad)")
+          .eq("centro_id", state.centroId).eq("estado", "BORRADOR").maybeSingle();
+        if (retry.data) {
+          invBorradorId = retry.data.id;
+          invScanList = (retry.data.lineas_inventario || []).map(l => ({ ean: l.ean, cantidad: l.cantidad }));
+          $("#inv-observaciones").value = retry.data.observaciones || "";
+          $("#inv-info").innerHTML = '<span class="text-stone-600">Borrador recuperado:</span> <span class="font-mono font-medium">' + retry.data.num_inventario + '</span>';
+          showToast('✓ Borrador recuperado');
+        }
+      }
+      return;
+    }
+    if (!ins.data || !ins.data.id) {
+      showToast('✗ INSERT no devolvio data', 'error');
+      return;
+    }
+    invBorradorId = ins.data.id;
     invScanList = [];
     $("#inv-observaciones").value = "";
-    $("#inv-info").innerHTML = '<span class="text-stone-600">Nuevo inventario:</span> <span class="font-mono font-medium">' + nuevo.num_inventario + '</span> \u00b7 fecha ' + fmtFecha(nuevo.fecha);
+    $("#inv-info").innerHTML = '<span class="text-stone-600">Nuevo inventario:</span> <span class="font-mono font-medium">' + ins.data.num_inventario + '</span> \u00b7 fecha ' + fmtFecha(ins.data.fecha);
+    console.log('[INV] BORRADOR NUEVO creado:', ins.data.id);
   }
 }
 
