@@ -65,6 +65,19 @@
     <div class="text-sm text-stone-500" id="loading-msg">Cargando…</div>
   </div>
 
+  <!-- ========== SELECCIÓN DE CENTRO (multi-centro) ========== -->
+  <div id="screen-select-centro" class="bg-white rounded-2xl border border-stone-200 p-8 fade-in hidden">
+    <div class="text-center mb-5">
+      <div class="text-[10px] tracking-widest text-stone-400 mb-1">ALMA EN PEÑA</div>
+      <h2 class="text-xl font-semibold text-stone-900">¿Qué centro quieres gestionar?</h2>
+      <p class="text-sm text-stone-500 mt-1">Tienes varios centros asignados a tu correo.</p>
+    </div>
+    <div id="select-centro-lista" class="flex flex-col gap-2 max-w-md mx-auto"></div>
+    <div class="mt-6 text-center">
+      <button id="btn-cancel-select" class="text-xs text-stone-500 hover:text-stone-900">← Volver al login</button>
+    </div>
+  </div>
+
   <!-- ========== APP PRINCIPAL ========== -->
   <div id="screen-app" class="hidden fade-in">
 
@@ -532,27 +545,61 @@ async function onLoggedIn(email) {
   showScreen("screen-loading");
   state.email = email;
 
-  const { data: mapeo, error } = await sb
+  // Soporta multi-centro: cargamos TODAS las filas del email
+  const { data: mapeos, error } = await sb
     .from("mapeo_usuarios")
     .select("centro_id, es_central, es_admin, nombre, centros (id, nombre)")
-    .ilike("email", email)
-    .maybeSingle();
+    .ilike("email", email);
 
-  if (error || !mapeo) {
+  if (error || !mapeos || mapeos.length === 0) {
     localStorage.removeItem("almapena_email");
     showScreen("screen-login");
-    showLoginMsg(`Tu correo (${email}) no está dado de alta. Contacta con Horacio.`, "error");
+    showLoginMsg("Tu correo (" + email + ") no está dado de alta. Contacta con Horacio.", "error");
     return;
   }
 
+  // Si alguna fila marca es_central → entra como central
+  const central = mapeos.find(m => m.es_central);
+  if (central) {
+    finalizarLogin(email, central, mapeos);
+    return;
+  }
+  // Solo un centro → directo
+  if (mapeos.length === 1) {
+    finalizarLogin(email, mapeos[0], mapeos);
+    return;
+  }
+  // Varios centros → mostrar selector
+  state.mapeosDisponibles = mapeos;
+  mostrarSelectorCentro(email, mapeos);
+}
+
+function finalizarLogin(email, mapeo, todos) {
   state.user         = { email };
   state.esCentral    = !!mapeo.es_central;
-  state.esAdmin      = !!mapeo.es_admin;
+  state.esAdmin      = todos.some(m => m.es_admin);
   state.centroId     = mapeo.centro_id;
   state.centroNombre = mapeo.centros ? mapeo.centros.nombre : "Oficina central";
+  cargarCentros().then(renderApp);
+}
 
-  await cargarCentros();
-  renderApp();
+function mostrarSelectorCentro(email, mapeos) {
+  showScreen("screen-select-centro");
+  const list = document.getElementById("select-centro-lista");
+  list.innerHTML = mapeos.map(m => {
+    const nombre = m.centros ? m.centros.nombre : "(sin centro)";
+    return '<button type="button" data-id="' + (m.centro_id || "") + '" ' +
+      'class="centro-btn w-full text-left px-4 py-3 border border-stone-200 rounded-lg hover:bg-blue-50 hover:border-blue-400 transition-colors">' +
+      '<div class="font-medium text-stone-900">' + nombre + '</div>' +
+      (m.es_admin ? '<div class="text-[11px] text-blue-600 mt-0.5">Admin</div>' : '') +
+      '</button>';
+  }).join("");
+  list.querySelectorAll(".centro-btn").forEach(btn => {
+    btn.onclick = () => {
+      const sel = mapeos.find(m => (m.centro_id || "") === btn.dataset.id);
+      if (sel) finalizarLogin(email, sel, mapeos);
+    };
+  });
 }
 
 $("#form-login").onsubmit = async e => {
@@ -600,9 +647,18 @@ function showLoginMsg(msg, kind = "ok") {
 }
 
 function showScreen(id) {
-  ["screen-login", "screen-loading", "screen-app"].forEach(s => $("#"+s).classList.add("hidden"));
+  ["screen-login", "screen-loading", "screen-app", "screen-select-centro"].forEach(s => $("#"+s).classList.add("hidden"));
   $("#"+id).classList.remove("hidden");
 }
+
+// Volver al login desde el selector de centro
+document.addEventListener("click", function(e) {
+  if (e.target && e.target.id === "btn-cancel-select") {
+    localStorage.removeItem("almapena_email");
+    state.user = null; state.email = null;
+    showScreen("screen-login");
+  }
+});
 
 // =====================================================
 // CARGA DE DATOS COMÚN
