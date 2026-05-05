@@ -1452,7 +1452,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v20</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v21</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1557,30 +1557,27 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     const inp = $("#inv-scan-input");
     if (inp) {
-      let invDebounce = null;
-      const flushInv = () => {
-        const v = inp.value.trim();
-        if (!v) return;
-        if (/^[0-9]+$/.test(v) && v.length >= 13 && v.length % 13 === 0) {
-          // Rafaga de N EANs de 13 digitos pegados
-          for (let i = 0; i < v.length; i += 13) invAddScan(v.substring(i, i + 13));
-        } else {
-          invAddScan(v);
+      // Estrategia v21: peel EAN-13 instantaneo. Cada 13 digitos = un scan.
+      // Funciona aunque vengan pegados (26, 39, 52 caracteres seguidos).
+      const peelEans = () => {
+        let v = inp.value.trim();
+        if (!/^[0-9]+$/.test(v)) return;
+        while (v.length >= 13) {
+          invAddScan(v.substring(0, 13));
+          v = v.substring(13);
         }
-        inp.value = "";
+        inp.value = v; // sobrante (<13 digitos) queda en el campo
       };
+      inp.addEventListener("input", peelEans);
+      // Enter: para EAN no estandar (8/12/14 digitos) o entrada manual
       inp.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { e.preventDefault(); clearTimeout(invDebounce); flushInv(); }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const v = inp.value.trim();
+          if (v) { invAddScan(v); inp.value = ""; }
+        }
       });
-      inp.addEventListener("input", () => {
-        clearTimeout(invDebounce);
-        // Esperar 500ms despues del ultimo caracter (mas largo que cualquier intervalo de pistola)
-        invDebounce = setTimeout(flushInv, 500);
-      });
-      inp.addEventListener("paste", () => {
-        clearTimeout(invDebounce);
-        setTimeout(flushInv, 50);
-      });
+      inp.addEventListener("paste", () => setTimeout(peelEans, 0));
     }
     if ($("#inv-btn-test-scan")) {
       $("#inv-btn-test-scan").onclick = () => {
