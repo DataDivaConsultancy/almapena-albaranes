@@ -229,6 +229,64 @@
 
   <!-- Toast -->
 
+    <!-- ----- INVENTARIO ----- -->
+    <div id="tab-inventario" class="tab-pane bg-white rounded-2xl border border-stone-200 p-4 hidden">
+      <!-- Cabecera (centro vs central) -->
+      <div id="inv-header" class="flex items-center justify-between mb-3"></div>
+
+      <!-- ===== Vista CENTRO: scanner ===== -->
+      <div id="inv-pane-centro" class="hidden">
+        <div id="inv-info" class="bg-stone-50 border border-stone-200 rounded-lg p-3 mb-3 text-xs text-stone-700"></div>
+
+        <div class="bg-stone-50 border border-stone-200 rounded-xl p-4 mb-3">
+          <label class="text-xs text-stone-500 mb-1 block">Escáner activo</label>
+          <div class="flex gap-2">
+            <input id="inv-scan-input" placeholder="Escanea o teclea EAN y pulsa Enter…" autocomplete="off"
+              class="flex-1 px-3 py-3 text-sm border-2 border-green-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-green-400 scanner-pulse font-mono">
+            <button id="inv-btn-test-scan" class="text-xs px-3 py-2 border border-stone-200 rounded-lg hover:bg-white">Demo</button>
+          </div>
+        </div>
+
+        <div class="flex items-baseline justify-between mb-2">
+          <div class="text-sm font-medium text-stone-800">EANs escaneados</div>
+          <div class="text-xs text-stone-500">Total: <span id="inv-scan-total" class="font-medium text-stone-900">0</span> uds · <span id="inv-scan-eans" class="font-medium text-stone-900">0</span> EANs</div>
+        </div>
+        <div id="inv-scan-list" class="flex flex-col gap-1.5 mb-4"></div>
+        <div id="inv-scan-vacio" class="text-center py-8 text-sm text-stone-400">Aún no escaneaste ningún EAN.</div>
+
+        <div class="mb-3">
+          <label class="text-xs text-stone-500 mb-1 block">Observaciones / incidencias <span class="text-stone-400">(opcional)</span></label>
+          <textarea id="inv-observaciones" rows="2" placeholder="Anota incidencias del conteo…"
+            class="w-full px-3 py-2 text-sm border border-stone-200 rounded-lg resize-y focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-300"></textarea>
+        </div>
+
+        <div class="flex gap-2">
+          <button id="inv-btn-pausar" class="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-800 text-sm font-medium py-3 rounded-lg">Pausar (guardar borrador)</button>
+          <button id="inv-btn-cerrar" class="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-3 rounded-lg">Cerrar inventario</button>
+        </div>
+
+        <h4 class="text-sm font-medium text-stone-700 mt-6 mb-2">Inventarios anteriores de tu centro</h4>
+        <div id="inv-historico-centro" class="flex flex-col gap-2"></div>
+      </div>
+
+      <!-- ===== Vista CENTRAL: lista global ===== -->
+      <div id="inv-pane-central" class="hidden">
+        <div class="flex flex-wrap items-center gap-2 mb-3">
+          <select id="inv-filter-centro" class="text-sm border border-stone-200 rounded-lg px-2 py-2 bg-white">
+            <option value="">Todos los centros</option>
+          </select>
+          <button id="inv-btn-refresh" class="text-sm border border-stone-200 hover:bg-stone-50 px-3 py-2 rounded-lg">↻ Refrescar</button>
+          <div class="flex-1"></div>
+          <button id="inv-btn-export" class="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Exportar Excel
+          </button>
+        </div>
+        <div id="inv-lista-central" class="flex flex-col gap-2"></div>
+        <div id="inv-vacio-central" class="text-center py-10 text-sm text-stone-400 hidden">No hay inventarios registrados.</div>
+      </div>
+    </div>
+
     <!-- ----- ADMIN: Gestión usuarios + centros ----- -->
     <div id="tab-admin" class="tab-pane bg-white rounded-2xl border border-stone-200 p-4 hidden">
 
@@ -561,11 +619,13 @@ function renderApp() {
         { id: "central-envios",        label: "Envíos" },
         { id: "central-devoluciones",  label: "Devoluciones" },
         { id: "central-traspasos",     label: "Traspasos" },
+        { id: "inventario",            label: "Inventario" },
       ]
     : [
         { id: "centro-recepcion",  label: "Recepción" },
         { id: "centro-devolucion", label: "Devolución" },
         { id: "centro-traspaso",   label: "Traspaso" },
+        { id: "inventario",        label: "Inventario" },
       ];
   if (state.esAdmin) {
     tabs.push({ id: "admin", label: "Admin" });
@@ -664,6 +724,7 @@ async function activateTab(id) {
   if (id === "centro-recepcion")      { await cargarEnvios(); renderRecepcion(); }
   if (id === "centro-devolucion")     { renderDevolucion(); }
   if (id === "centro-traspaso")       { await cargarTraspasos(); renderTraspaso(); }
+  if (id === "inventario")            { await renderInventario(); }
 }
 
 // =====================================================
@@ -1375,6 +1436,255 @@ $("#btn-export-devoluciones").onclick = async () => {
   XLSX.writeFile(wb, "AlmaEnPena_Devoluciones_" + today() + ".xlsx");
   showToast("OK " + (devs||[]).length + " devoluciones exportadas");
 };
+
+
+
+// ====== INVENTARIO ======
+let invScanList = [];        // array {ean, cantidad}
+let invBorradorId = null;    // id del inventario borrador actual (centro)
+
+async function renderInventario() {
+  if (state.esCentral || state.esAdmin) {
+    $("#inv-pane-central").classList.remove("hidden");
+    $("#inv-pane-centro").classList.add("hidden");
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventarios por centro</h3><p class="text-xs text-stone-500">Conteos f\u00edsicos enviados por las dependientas</p></div>';
+    await renderInvCentral();
+  } else {
+    $("#inv-pane-central").classList.add("hidden");
+    $("#inv-pane-centro").classList.remove("hidden");
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro</h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    await loadOrCreateBorrador();
+    pintarInvScan();
+    setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
+    await renderInvHistoricoCentro();
+  }
+}
+
+async function loadOrCreateBorrador() {
+  // Buscar BORRADOR del centro actual
+  const { data: borr } = await sb.from("inventarios")
+    .select("id, num_inventario, fecha, observaciones, lineas_inventario(ean, cantidad)")
+    .eq("centro_id", state.centroId)
+    .eq("estado", "BORRADOR")
+    .maybeSingle();
+
+  if (borr) {
+    invBorradorId = borr.id;
+    invScanList = (borr.lineas_inventario || []).map(l => ({ ean: l.ean, cantidad: l.cantidad }));
+    $("#inv-observaciones").value = borr.observaciones || "";
+    $("#inv-info").innerHTML = '<span class="text-stone-600">Borrador en curso:</span> <span class="font-mono font-medium">' + borr.num_inventario + '</span> \u00b7 fecha ' + fmtFecha(borr.fecha);
+  } else {
+    // Crear nuevo BORRADOR
+    const fecha = today();
+    const { count } = await sb.from("inventarios").select("*", { count: "exact", head: true })
+      .eq("fecha", fecha).eq("centro_id", state.centroId);
+    const num = "INV-" + fecha.replaceAll("-","") + "-" + String((count||0)+1).padStart(3,"0");
+    const { data: nuevo, error } = await sb.from("inventarios").insert({
+      num_inventario: num, centro_id: state.centroId, fecha,
+      estado: "BORRADOR", creado_por: state.email,
+    }).select("id, num_inventario, fecha").single();
+    if (error) { showToast("X " + error.message, "error"); return; }
+    invBorradorId = nuevo.id;
+    invScanList = [];
+    $("#inv-observaciones").value = "";
+    $("#inv-info").innerHTML = '<span class="text-stone-600">Nuevo inventario:</span> <span class="font-mono font-medium">' + nuevo.num_inventario + '</span> \u00b7 fecha ' + fmtFecha(nuevo.fecha);
+  }
+}
+
+function pintarInvScan() {
+  const list = $("#inv-scan-list"); list.innerHTML = "";
+  if (invScanList.length === 0) {
+    $("#inv-scan-vacio").classList.remove("hidden");
+    $("#inv-scan-total").textContent = "0";
+    $("#inv-scan-eans").textContent = "0";
+    return;
+  }
+  $("#inv-scan-vacio").classList.add("hidden");
+  invScanList.forEach((row, idx) => {
+    const div = document.createElement("div");
+    div.className = "flex items-center gap-3 px-3 py-2 border border-stone-200 rounded-lg";
+    div.innerHTML = '<div class="font-mono text-sm flex-1">' + row.ean + '</div>' +
+      '<div class="flex items-center gap-1">' +
+      '<button data-i="' + idx + '" class="inv-btn-minus w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">\u2212</button>' +
+      '<span class="w-10 text-center text-sm font-medium">' + row.cantidad + '</span>' +
+      '<button data-i="' + idx + '" class="inv-btn-plus w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">+</button>' +
+      '</div>' +
+      '<button data-i="' + idx + '" class="inv-btn-del p-1.5 border border-stone-200 rounded-md hover:bg-red-50">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-stone-600"><path d="M3 6h18M8 6v14a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6"/></svg>' +
+      '</button>';
+    list.appendChild(div);
+  });
+  $(".inv-btn-plus").forEach(b => b.onclick = () => { invScanList[+b.dataset.i].cantidad++; persistInvLine(invScanList[+b.dataset.i]); pintarInvScan(); });
+  $(".inv-btn-minus").forEach(b => b.onclick = () => {
+    const i = +b.dataset.i; invScanList[i].cantidad--;
+    if (invScanList[i].cantidad <= 0) {
+      const ean = invScanList[i].ean; invScanList.splice(i,1);
+      sb.from("lineas_inventario").delete().eq("inventario_id", invBorradorId).eq("ean", ean);
+    } else {
+      persistInvLine(invScanList[i]);
+    }
+    pintarInvScan();
+  });
+  $(".inv-btn-del").forEach(b => b.onclick = async () => {
+    const i = +b.dataset.i; const ean = invScanList[i].ean;
+    invScanList.splice(i, 1);
+    await sb.from("lineas_inventario").delete().eq("inventario_id", invBorradorId).eq("ean", ean);
+    pintarInvScan();
+  });
+  $("#inv-scan-total").textContent = invScanList.reduce((s,r)=>s+r.cantidad, 0);
+  $("#inv-scan-eans").textContent = invScanList.length;
+}
+
+async function persistInvLine(row) {
+  // Upsert por (inventario_id, ean)
+  await sb.from("lineas_inventario").upsert(
+    { inventario_id: invBorradorId, ean: row.ean, cantidad: row.cantidad },
+    { onConflict: "inventario_id,ean" }
+  );
+}
+
+function invAddScan(ean) {
+  if (!ean || !invBorradorId) return;
+  const existing = invScanList.find(r => r.ean === ean);
+  if (existing) existing.cantidad++;
+  else invScanList.unshift({ ean, cantidad: 1 });
+  persistInvLine(invScanList.find(r => r.ean === ean));
+  pintarInvScan();
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  // El listener del input se engancha cuando el elemento existe
+  setTimeout(() => {
+    const inp = $("#inv-scan-input");
+    if (inp) {
+      inp.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") { const v = e.target.value.trim(); if (v) { invAddScan(v); e.target.value = ""; } }
+      });
+    }
+    if ($("#inv-btn-test-scan")) {
+      $("#inv-btn-test-scan").onclick = () => {
+        const eans = ["8412345000017","8412345000024","8412345000031","8412345000048","8412345000055"];
+        invAddScan(eans[Math.floor(Math.random() * eans.length)]);
+        $("#inv-scan-input").focus();
+      };
+    }
+    if ($("#inv-btn-pausar")) {
+      $("#inv-btn-pausar").onclick = async () => {
+        const obs = $("#inv-observaciones").value.trim() || null;
+        await sb.from("inventarios").update({ observaciones: obs }).eq("id", invBorradorId);
+        showToast("OK Borrador guardado");
+      };
+    }
+    if ($("#inv-btn-cerrar")) {
+      $("#inv-btn-cerrar").onclick = async () => {
+        if (invScanList.length === 0) { showToast("No hay nada que cerrar", "error"); return; }
+        if (!confirm("Cerrar inventario? Una vez cerrado no se puede modificar.")) return;
+        const obs = $("#inv-observaciones").value.trim() || null;
+        const { error } = await sb.from("inventarios").update({ observaciones: obs, estado: "CERRADO" }).eq("id", invBorradorId);
+        if (error) { showToast("X " + error.message, "error"); return; }
+        showToast("OK Inventario cerrado");
+        invBorradorId = null; invScanList = [];
+        await renderInventario();
+      };
+    }
+    if ($("#inv-btn-refresh")) $("#inv-btn-refresh").onclick = renderInvCentral;
+    if ($("#inv-btn-export")) $("#inv-btn-export").onclick = exportInventariosExcel;
+  }, 500);
+});
+
+async function renderInvHistoricoCentro() {
+  const list = $("#inv-historico-centro"); list.innerHTML = "";
+  const { data: invs } = await sb.from("inventarios_con_total")
+    .select("*").eq("centro_id", state.centroId).eq("estado", "CERRADO")
+    .order("fecha", { ascending: false }).limit(20);
+  if (!invs || invs.length === 0) {
+    list.innerHTML = '<div class="text-center py-4 text-xs text-stone-400">No hay inventarios cerrados a\u00fan.</div>';
+    return;
+  }
+  invs.forEach(i => {
+    const det = document.createElement("details");
+    det.className = "border border-stone-200 rounded-lg overflow-hidden";
+    det.innerHTML = '<summary class="grid grid-cols-[16px_1fr_auto] gap-3 items-center px-3 py-2 hover:bg-stone-50 cursor-pointer">' +
+      '<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>' +
+      '<div><div class="text-sm font-medium text-stone-900 font-mono">' + i.num_inventario + '</div>' +
+      '<div class="text-[11px] text-stone-500">' + fmtFecha(i.fecha) + ' \u00b7 ' + i.total_eans + ' EANs \u00b7 ' + i.total_uds + ' uds</div></div>' +
+      '<span class="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-800">CERRADO</span></summary>' +
+      '<div class="px-3 py-2 bg-stone-50 border-t border-stone-200 text-xs">' +
+      (i.observaciones ? '<div class="mb-2"><span class="text-stone-500">Observaciones:</span> ' + escapeHtml(i.observaciones) + '</div>' : '') +
+      '<div class="text-stone-500">Detalle disponible en panel central.</div></div>';
+    list.appendChild(det);
+  });
+}
+
+async function renderInvCentral() {
+  // Cargar centros para el filtro
+  const fc = $("#inv-filter-centro"); const valActual = fc.value;
+  fc.innerHTML = '<option value="">Todos los centros</option>';
+  state.centros.forEach(c => {
+    const o = document.createElement("option"); o.value = c.id; o.textContent = c.nombre;
+    if (c.id === valActual) o.selected = true;
+    fc.appendChild(o);
+  });
+  fc.onchange = renderInvCentral;
+
+  let q = sb.from("inventarios_con_total")
+    .select("*, lineas:lineas_inventario(ean, cantidad)")
+    .order("fecha", { ascending: false }).order("created_at", { ascending: false });
+  if (fc.value) q = q.eq("centro_id", fc.value);
+  const { data: invs, error } = await q;
+  if (error) { showToast("X " + error.message, "error"); return; }
+
+  const lista = $("#inv-lista-central"); lista.innerHTML = "";
+  if (!invs || invs.length === 0) { $("#inv-vacio-central").classList.remove("hidden"); return; }
+  $("#inv-vacio-central").classList.add("hidden");
+
+  invs.forEach(i => {
+    const det = document.createElement("details");
+    det.className = "border border-stone-200 rounded-lg overflow-hidden";
+    const estadoBadge = i.estado === "CERRADO"
+      ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-800">CERRADO</span>'
+      : '<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">BORRADOR</span>';
+    det.innerHTML = '<summary class="grid grid-cols-[16px_1fr_auto_auto] gap-3 items-center px-3 py-2.5 hover:bg-stone-50 cursor-pointer">' +
+      '<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>' +
+      '<div><div class="text-sm font-medium text-stone-900 font-mono">' + i.num_inventario + '</div>' +
+      '<div class="text-[11px] text-stone-500">' + (i.centro_nombre || "?") + ' \u00b7 ' + fmtFecha(i.fecha) + ' \u00b7 ' + i.total_eans + ' EANs \u00b7 ' + i.total_uds + ' uds</div></div>' +
+      '<div class="text-right text-[11px] text-stone-500">' + (i.creado_por || "") + '</div>' +
+      estadoBadge + '</summary>' +
+      '<div class="px-3 py-2 bg-stone-50 border-t border-stone-200">' +
+      (i.observaciones ? '<div class="bg-amber-50 border border-amber-200 rounded p-2 mb-2 text-xs"><span class="font-medium text-amber-900">Incidencia:</span> <span class="text-amber-800 whitespace-pre-line">' + escapeHtml(i.observaciones) + '</span></div>' : '') +
+      '<table class="w-full text-xs"><thead class="text-stone-500"><tr><th class="text-left py-1 font-normal">EAN</th><th class="text-right py-1 font-normal">Cantidad</th></tr></thead><tbody>' +
+      (i.lineas || []).map(l => '<tr class="border-t border-stone-200"><td class="py-1.5 font-mono">' + l.ean + '</td><td class="py-1.5 text-right font-medium">' + l.cantidad + '</td></tr>').join("") +
+      '</tbody></table></div>';
+    lista.appendChild(det);
+  });
+}
+
+async function exportInventariosExcel() {
+  const fc = $("#inv-filter-centro");
+  let q = sb.from("inventarios_con_total")
+    .select("*, lineas:lineas_inventario(ean, cantidad)")
+    .order("fecha", { ascending: false });
+  if (fc.value) q = q.eq("centro_id", fc.value);
+  const { data: invs, error } = await q;
+  if (error) { showToast("X " + error.message, "error"); return; }
+
+  const rows = [["Num inventario","Centro","Fecha","Estado","Creado por","Observaciones","EAN","Cantidad"]];
+  (invs || []).forEach(i => {
+    const lineas = i.lineas && i.lineas.length ? i.lineas : [{ean:"",cantidad:0}];
+    lineas.forEach(l => {
+      rows.push([
+        i.num_inventario, i.centro_nombre || "", i.fecha || "", i.estado || "",
+        i.creado_por || "", i.observaciones || "", l.ean || "", l.cantidad || 0,
+      ]);
+    });
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{wch:20},{wch:32},{wch:12},{wch:12},{wch:28},{wch:30},{wch:16},{wch:8}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Inventarios");
+  XLSX.writeFile(wb, "AlmaEnPena_Inventarios_" + today() + ".xlsx");
+  showToast("OK " + (invs||[]).length + " inventarios exportados");
+}
 
 </script>
 </body>
