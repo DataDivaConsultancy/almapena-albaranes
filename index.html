@@ -1452,7 +1452,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v22</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v23</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1579,16 +1579,20 @@ document.addEventListener("DOMContentLoaded", () => {
       const peelEans = () => {
         clearTimeout(invPartialTimer);
         let v = inp.value.trim();
+        if (!v) return;
         if (!/^[0-9]+$/.test(v)) {
-          if (v.length > 0) { beepError(); inp.value = ""; }
-          return;
+          beepError(); inp.value = ""; return;
         }
+        // Peel EAN-13 desde la izquierda mientras haya 13+ digitos
+        let added = 0;
         while (v.length >= 13) {
           invAddScan(v.substring(0, 13));
-          beepOk();
+          added++;
           v = v.substring(13);
         }
         inp.value = v;
+        if (added > 0) beepOk();
+        // Si queda parcial (1-12 digitos), esperar 500ms y limpiar con beep error
         if (v.length > 0) {
           invPartialTimer = setTimeout(() => {
             beepError();
@@ -1606,6 +1610,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
       inp.addEventListener("paste", () => setTimeout(peelEans, 0));
+      // Poller seguro: cada 200ms revisa por si la pistola no dispara eventos DOM. SOLO peels si hay 13+ digitos.
+      setInterval(() => {
+        if (inp.offsetParent === null) return; // no visible
+        if (inp.value.length >= 13) peelEans();
+      }, 200);
     }
     if ($("#inv-btn-test-scan")) {
       $("#inv-btn-test-scan").onclick = () => {
