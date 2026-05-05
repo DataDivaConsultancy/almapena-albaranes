@@ -1452,7 +1452,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v25/26</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v27</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1566,84 +1566,32 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     const inp = $("#inv-scan-input");
     if (inp) {
+      // Beep simple para feedback
       let invAudioCtx = null;
-      const beep = (freq, durMs, vol) => {
+      const beepOk = () => {
         try {
           if (!invAudioCtx) invAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
           const osc = invAudioCtx.createOscillator();
           const gain = invAudioCtx.createGain();
           osc.connect(gain); gain.connect(invAudioCtx.destination);
-          osc.frequency.value = freq;
-          osc.type = 'sine';
-          gain.gain.setValueAtTime(vol, invAudioCtx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.001, invAudioCtx.currentTime + durMs/1000);
+          osc.frequency.value = 880;
+          gain.gain.setValueAtTime(0.15, invAudioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, invAudioCtx.currentTime + 0.08);
           osc.start();
-          osc.stop(invAudioCtx.currentTime + durMs/1000);
+          osc.stop(invAudioCtx.currentTime + 0.08);
         } catch(e) {}
       };
-      const beepOk = () => beep(880, 80, 0.15);
-      const beepError = () => { beep(180, 250, 0.3); setTimeout(() => beep(140, 250, 0.3), 120); };
-
-      // Flash visual
-      const flashOk = () => {
-        inp.style.transition = "background-color 0.1s";
-        inp.style.backgroundColor = "#bbf7d0";
-        setTimeout(() => { inp.style.backgroundColor = ""; }, 200);
-      };
-
-      // Anti-duplicado: mismo EAN no se cuenta dos veces dentro de 200ms
-      const lastScans = {}; // ean -> timestamp ms
-      const ANTI_DUP_MS = 200;
-      const safeAddScan = (ean) => {
-        const now = Date.now();
-        const last = lastScans[ean] || 0;
-        if (now - last < ANTI_DUP_MS) {
-          console.log('[INV] dedupe', ean, 'gap=' + (now-last) + 'ms');
-          return false;
-        }
-        lastScans[ean] = now;
-        invAddScan(ean);
-        return true;
-      };
-
-      let invPartialTimer = null;
-      const peelEans = (source) => {
-        clearTimeout(invPartialTimer);
-        let v = inp.value.trim();
-        if (!v) return;
-        if (!/^[0-9]+$/.test(v)) {
-          beepError(); inp.value = ""; return;
-        }
-        let added = 0;
-        while (v.length >= 13) {
-          if (safeAddScan(v.substring(0, 13))) added++;
-          v = v.substring(13);
-        }
-        inp.value = v;
-        if (added > 0) { beepOk(); flashOk(); console.log('[INV] +' + added + ' from ' + (source||'?')); }
-        if (v.length > 0) {
-          invPartialTimer = setTimeout(() => {
-            beepError();
-            console.log('[INV] partial cleared:', v);
-            inp.value = "";
-          }, 500);
-        }
-      };
-      inp.addEventListener("input", () => peelEans('input'));
+      // Mismo patron que devolucion: Enter dispara, value se limpia
       inp.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
-          e.preventDefault();
-          clearTimeout(invPartialTimer);
-          const v = inp.value.trim();
-          if (v) { if (safeAddScan(v)) { beepOk(); flashOk(); } inp.value = ""; }
+          const v = e.target.value.trim();
+          if (v) {
+            invAddScan(v);
+            beepOk();
+            e.target.value = "";
+          }
         }
       });
-      inp.addEventListener("paste", () => setTimeout(() => peelEans('paste'), 0));
-      // Poller seguro: cada 200ms revisa por si la pistola no dispara eventos DOM. SOLO si hay 13+ digitos.
-      setInterval(() => {
-        if (inp.offsetParent === null) return;
-        if (inp.value.length >= 13) peelEans('poll');
-      }, 200);
     }
     if ($("#inv-btn-test-scan")) {
       $("#inv-btn-test-scan").onclick = () => {
