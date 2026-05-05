@@ -1452,7 +1452,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v30</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v31</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1526,33 +1526,42 @@ function pintarInvScan() {
     div.className = "flex items-center gap-3 px-3 py-2 border border-stone-200 rounded-lg";
     div.innerHTML = '<div class="font-mono text-sm flex-1">' + row.ean + '</div>' +
       '<div class="flex items-center gap-1">' +
-      '<button data-i="' + idx + '" class="inv-btn-minus w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">\u2212</button>' +
+      '<button data-i="' + idx + '" data-act="minus" class="inv-act-btn w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">−</button>' +
       '<span class="w-10 text-center text-sm font-medium">' + row.cantidad + '</span>' +
-      '<button data-i="' + idx + '" class="inv-btn-plus w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">+</button>' +
+      '<button data-i="' + idx + '" data-act="plus" class="inv-act-btn w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">+</button>' +
       '</div>' +
-      '<button data-i="' + idx + '" class="inv-btn-del p-1.5 border border-stone-200 rounded-md hover:bg-red-50">' +
-      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-stone-600"><path d="M3 6h18M8 6v14a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6"/></svg>' +
+      '<button data-i="' + idx + '" data-act="del" class="inv-act-btn p-1.5 border border-stone-200 rounded-md hover:bg-red-50" title="Eliminar">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-stone-600 pointer-events-none"><path d="M3 6h18M8 6v14a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6"/></svg>' +
       '</button>';
     list.appendChild(div);
   });
-  $(".inv-btn-plus").forEach(b => b.onclick = () => { invScanList[+b.dataset.i].cantidad++; persistInvLine(invScanList[+b.dataset.i]); pintarInvScan(); });
-  $(".inv-btn-minus").forEach(b => b.onclick = () => {
-    const i = +b.dataset.i; invScanList[i].cantidad--;
-    if (invScanList[i].cantidad <= 0) {
-      const ean = invScanList[i].ean; invScanList.splice(i,1);
-      sb.from("lineas_inventario").delete().eq("inventario_id", invBorradorId).eq("ean", ean);
-    } else {
-      persistInvLine(invScanList[i]);
+  // Event delegation: un solo listener en el contenedor
+  list.onclick = async (e) => {
+    const btn = e.target.closest(".inv-act-btn");
+    if (!btn) return;
+    e.preventDefault();
+    const i = parseInt(btn.dataset.i);
+    if (isNaN(i) || !invScanList[i]) return;
+    const act = btn.dataset.act;
+    const ean = invScanList[i].ean;
+    if (act === "plus") {
+      invScanList[i].cantidad++;
+      await persistInvLine(invScanList[i]);
+    } else if (act === "minus") {
+      invScanList[i].cantidad--;
+      if (invScanList[i].cantidad <= 0) {
+        invScanList.splice(i, 1);
+        await sb.from("lineas_inventario").delete().eq("inventario_id", invBorradorId).eq("ean", ean);
+      } else {
+        await persistInvLine(invScanList[i]);
+      }
+    } else if (act === "del") {
+      invScanList.splice(i, 1);
+      await sb.from("lineas_inventario").delete().eq("inventario_id", invBorradorId).eq("ean", ean);
     }
     pintarInvScan();
-  });
-  $(".inv-btn-del").forEach(b => b.onclick = async () => {
-    const i = +b.dataset.i; const ean = invScanList[i].ean;
-    invScanList.splice(i, 1);
-    await sb.from("lineas_inventario").delete().eq("inventario_id", invBorradorId).eq("ean", ean);
-    pintarInvScan();
-  });
-  $("#inv-scan-total").textContent = invScanList.reduce((s,r)=>s+r.cantidad, 0);
+  };
+  $("#inv-scan-total").textContent = invScanList.reduce((s,r) => s + r.cantidad, 0);
   $("#inv-scan-eans").textContent = invScanList.length;
 }
 
