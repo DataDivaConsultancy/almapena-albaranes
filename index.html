@@ -1452,7 +1452,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v24</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v25</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1724,13 +1724,26 @@ async function renderInvCentral() {
       '<div><div class="text-sm font-medium text-stone-900 font-mono">' + i.num_inventario + '</div>' +
       '<div class="text-[11px] text-stone-500">' + (i.centro_nombre || "?") + ' \u00b7 ' + fmtFecha(i.fecha) + ' \u00b7 ' + i.total_eans + ' EANs \u00b7 ' + i.total_uds + ' uds</div></div>' +
       '<div class="text-right text-[11px] text-stone-500">' + (i.creado_por || "") + '</div>' +
-      estadoBadge + '</summary>' +
+      estadoBadge +
+      '<button class="inv-del-btn ml-2 text-[10px] text-red-500 hover:text-red-700 hover:underline" data-id="' + i.id + '" data-num="' + i.num_inventario + '">Eliminar</button>' +
+      '</summary>' +
       '<div class="px-3 py-2 bg-stone-50 border-t border-stone-200">' +
       (i.observaciones ? '<div class="bg-amber-50 border border-amber-200 rounded p-2 mb-2 text-xs"><span class="font-medium text-amber-900">Incidencia:</span> <span class="text-amber-800 whitespace-pre-line">' + escapeHtml(i.observaciones) + '</span></div>' : '') +
       '<table class="w-full text-xs"><thead class="text-stone-500"><tr><th class="text-left py-1 font-normal">EAN</th><th class="text-right py-1 font-normal">Cantidad</th></tr></thead><tbody>' +
       (i.lineas || []).map(l => '<tr class="border-t border-stone-200"><td class="py-1.5 font-mono">' + l.ean + '</td><td class="py-1.5 text-right font-medium">' + l.cantidad + '</td></tr>').join("") +
       '</tbody></table></div>';
     lista.appendChild(det);
+  });
+  // Manejadores eliminar inventario
+  lista.querySelectorAll(".inv-del-btn").forEach(btn => {
+    btn.onclick = async (ev) => {
+      ev.preventDefault(); ev.stopPropagation();
+      if (!confirm("¿Eliminar inventario " + btn.dataset.num + "? Esto borra todas sus líneas. No se puede deshacer.")) return;
+      const { error } = await sb.from("inventarios").delete().eq("id", btn.dataset.id);
+      if (error) { showToast("✗ " + error.message, "error"); return; }
+      showToast("✓ Inventario eliminado");
+      await renderInvCentral();
+    };
   });
 }
 
