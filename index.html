@@ -32,7 +32,7 @@
   <div id="screen-login" class="bg-white rounded-2xl border border-stone-200 p-8 fade-in hidden">
     <div class="text-center mb-6">
       <div class="text-[10px] tracking-widest text-stone-400 mb-1">ALMA EN PEÑA</div>
-      <h1 class="text-2xl font-semibold text-stone-900">Albaranes ECI</h1>
+      <h1 class="text-2xl font-semibold text-stone-900">Albaranes ECI <span class="text-xs text-stone-400 font-normal align-top">v37</span></h1>
       <p class="text-sm text-stone-500 mt-2">Introduce tu correo para entrar.</p>
     </div>
 
@@ -1940,20 +1940,62 @@ async function exportInventariosFiltered() {
 function parseBoolXlsx(v, def) {
   if (v === undefined || v === null || v === "") return def;
   const s = String(v).toLowerCase().trim();
-  return ["si","sí","true","verdadero","1","x","yes","y"].includes(s);
+  return ["si","sí","true","verdadero","1","x","yes","y","sí"].includes(s);
+}
+
+// Limpia strings: quita NBSP, tabs raros y colapsa espacios
+function cleanStr(v) {
+  if (v === undefined || v === null) return "";
+  return String(v)
+    .replace(/[   ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Normaliza para matching: minusculas, sin acentos, sin puntuacion variable
+function normKey(v) {
+  return cleanStr(v)
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[\s\-_./]+/g, " ")
+    .replace(/[^\w\s]/g, "")
+    .trim();
+}
+
+// Divide un campo email que puede traer varios separados por ; , o salto de linea
+function splitEmails(v) {
+  return cleanStr(v)
+    .split(/[;,\n]+/)
+    .map(e => e.trim().toLowerCase())
+    .filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
 }
 
 function descargarPlantillaUsuarios() {
   const data = [
     ["email","nombre","centro_codigo","es_central","es_admin"],
     ["central@almaenpena.es","Oficina Central","","SI","NO"],
-    ["castellana@almaenpena.es","Dep. Castellana","ECI-MAD-CAS","NO","NO"],
-    ["goya@almaenpena.es","Dep. Goya","ECI-MAD-GOY","NO","NO"],
+    ["castellana@almaenpena.es;auxiliar@almaenpena.es","Dep. Castellana","ECI-MAD-CAS","NO","NO"],
+    ["responsable@almaenpena.es","Resp. Goya y Princesa","ECI-MAD-GOY","NO","NO"],
+    ["responsable@almaenpena.es","Resp. Goya y Princesa","ECI-MAD-PRI","NO","NO"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws["!cols"] = [{wch:32},{wch:24},{wch:18},{wch:10},{wch:10}];
+  ws["!cols"] = [{wch:42},{wch:24},{wch:32},{wch:10},{wch:10}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Usuarios");
+  const help = [
+    ["INSTRUCCIONES — carga masiva de usuarios"],
+    [""],
+    ["• 'email': uno o varios separados por ; (punto y coma) o ,"],
+    ["• 'centro_codigo': admite el CODIGO del centro o su NOMBRE"],
+    ["• Persona que gestiona varios centros: una FILA por cada centro"],
+    ["• 'es_central'=SI -> deja centro_codigo vacio"],
+    ["• 'es_admin'=SI -> da acceso al panel Admin"],
+    [""],
+    ["IMPORTANTE: primero sube la plantilla de Centros, luego la de Usuarios."],
+  ];
+  const wsHelp = XLSX.utils.aoa_to_sheet(help);
+  wsHelp["!cols"] = [{wch:80}];
+  XLSX.utils.book_append_sheet(wb, wsHelp, "Instrucciones");
   XLSX.writeFile(wb, "AlmaEnPena_Plantilla_Usuarios.xlsx");
 }
 
@@ -1964,7 +2006,7 @@ function descargarPlantillaCentros() {
     ["ECI-MAD-GOY","ECI Goya - Calzado Mujer","Madrid","Goya 76","","","","SI"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws["!cols"] = [{wch:18},{wch:32},{wch:14},{wch:24},{wch:22},{wch:24},{wch:14},{wch:8}];
+  ws["!cols"] = [{wch:18},{wch:36},{wch:14},{wch:24},{wch:22},{wch:24},{wch:14},{wch:8}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Centros");
   XLSX.writeFile(wb, "AlmaEnPena_Plantilla_Centros.xlsx");
@@ -1976,18 +2018,26 @@ async function bulkUploadCentros(file) {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
     const records = rows.map(r => {
       const k = Object.fromEntries(Object.entries(r).map(([kk,vv]) => [String(kk).toLowerCase().trim(), vv]));
+      let codigo = cleanStr(k.codigo);
+      const nombre = cleanStr(k.nombre);
+      // Si no hay codigo, lo derivamos del nombre (slug en mayusculas)
+      if (!codigo && nombre) {
+        codigo = nombre.toUpperCase()
+          .normalize("NFD").replace(/[̀-ͯ]/g, "")
+          .replace(/[^\w]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
+          .substring(0, 40);
+      }
       return {
-        codigo: String(k.codigo || "").trim(),
-        nombre: String(k.nombre || "").trim(),
-        ciudad: String(k.ciudad || "").trim() || null,
-        direccion: String(k.direccion || "").trim() || null,
-        responsable: String(k.responsable || "").trim() || null,
-        email: String(k.email || "").trim() || null,
-        telefono: String(k.telefono || "").trim() || null,
+        codigo, nombre,
+        ciudad: cleanStr(k.ciudad) || null,
+        direccion: cleanStr(k.direccion) || null,
+        responsable: cleanStr(k.responsable) || null,
+        email: cleanStr(k.email).toLowerCase() || null,
+        telefono: cleanStr(k.telefono) || null,
         activo: parseBoolXlsx(k.activo, true),
       };
     }).filter(c => c.codigo && c.nombre);
-    if (records.length === 0) { showToast("✗ Excel sin filas válidas (requiere codigo y nombre)", "error"); return; }
+    if (records.length === 0) { showToast("✗ Excel sin filas validas (requiere nombre)", "error"); return; }
     const { error } = await sb.from("centros").upsert(records, { onConflict: "codigo" });
     if (error) { showToast("✗ " + error.message, "error"); return; }
     showToast("✓ " + records.length + " centro(s) cargados/actualizados");
@@ -2000,41 +2050,102 @@ async function bulkUploadUsuarios(file) {
   try {
     const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
-    const { data: centros } = await sb.from("centros").select("id, codigo, nombre");
-    const codigoMap = {};
+
+    // Cargar centros para matching tolerante
+    const { data: centros, error: errCent } = await sb.from("centros").select("id, codigo, nombre");
+    if (errCent) { showToast("✗ " + errCent.message, "error"); return; }
+    const codigoMap = {}, nombreMap = {}, normMap = {};
     (centros || []).forEach(c => {
-      if (c.codigo) codigoMap[String(c.codigo).toLowerCase().trim()] = c.id;
-      if (c.nombre) codigoMap[String(c.nombre).toLowerCase().trim()] = c.id;
+      if (c.codigo) codigoMap[cleanStr(c.codigo).toLowerCase()] = c.id;
+      if (c.nombre) {
+        nombreMap[cleanStr(c.nombre).toLowerCase()] = c.id;
+        normMap[normKey(c.nombre)] = c.id;
+      }
     });
+    function resolveCentro(raw) {
+      if (!raw) return null;
+      const k1 = cleanStr(raw).toLowerCase();
+      if (codigoMap[k1]) return codigoMap[k1];
+      if (nombreMap[k1]) return nombreMap[k1];
+      const k2 = normKey(raw);
+      if (normMap[k2]) return normMap[k2];
+      return null;
+    }
+
     const records = [];
-    const errors = [];
+    const errors  = [];
+    const centrosNoEncontrados = new Set();
+
     rows.forEach((r, idx) => {
       const k = Object.fromEntries(Object.entries(r).map(([kk,vv]) => [String(kk).toLowerCase().trim(), vv]));
-      const email = String(k.email || "").trim().toLowerCase();
-      if (!email) return;
-      const centroKey = String(k.centro_codigo || k.centro || "").trim().toLowerCase();
-      let centro_id = null;
-      if (centroKey) {
-        centro_id = codigoMap[centroKey] || null;
-        if (!centro_id) { errors.push("Fila " + (idx+2) + " (" + email + "): centro '" + centroKey + "' no encontrado"); return; }
+      const emails = splitEmails(k.email);
+      if (emails.length === 0) {
+        if (cleanStr(k.email)) errors.push("Fila " + (idx+2) + ": email invalido '" + cleanStr(k.email) + "'");
+        return;
       }
-      records.push({
-        email, nombre: String(k.nombre || "").trim() || null,
-        centro_id,
-        es_central: parseBoolXlsx(k.es_central, false),
-        es_admin: parseBoolXlsx(k.es_admin, false),
+      const esCentral = parseBoolXlsx(k.es_central, false);
+      const esAdmin   = parseBoolXlsx(k.es_admin, false);
+      const nombre    = cleanStr(k.nombre) || null;
+      const centroRaw = cleanStr(k.centro_codigo || k.centro || "");
+
+      let centro_id = null;
+      if (esCentral && !centroRaw) {
+        centro_id = null;
+      } else if (centroRaw) {
+        centro_id = resolveCentro(centroRaw);
+        if (!centro_id) {
+          centrosNoEncontrados.add(centroRaw);
+          errors.push("Fila " + (idx+2) + ": centro '" + centroRaw + "' no encontrado");
+          return;
+        }
+      } else {
+        errors.push("Fila " + (idx+2) + ": falta centro_codigo (o marca es_central=SI)");
+        return;
+      }
+
+      emails.forEach(email => {
+        records.push({ email, nombre, centro_id, es_central: esCentral, es_admin: esAdmin });
       });
     });
+
     if (records.length === 0) {
-      showToast("✗ No hay filas válidas. " + errors.slice(0,3).join("; "), "error");
+      const tip = centrosNoEncontrados.size
+        ? " — Centros no encontrados: " + Array.from(centrosNoEncontrados).slice(0,3).join(", ") +
+          (centrosNoEncontrados.size > 3 ? "…" : "") + ". Sube primero la plantilla de Centros."
+        : "";
+      showToast("✗ No hay filas validas." + tip, "error");
+      console.warn("[BULK USR] errores:", errors);
       return;
     }
-    const { error } = await sb.from("mapeo_usuarios").upsert(records, { onConflict: "email" });
-    if (error) { showToast("✗ " + error.message, "error"); return; }
-    let msg = "✓ " + records.length + " usuario(s) cargados/actualizados";
-    if (errors.length) msg += " (" + errors.length + " errores; ver consola)";
-    if (errors.length) console.warn("[BULK USR] errores:", errors);
-    showToast(msg);
+
+    // Cargar mapeo existente para decidir UPDATE vs INSERT (sin depender de unique compuesta)
+    const { data: existentes } = await sb.from("mapeo_usuarios").select("id, email, centro_id");
+    const idxExistentes = {};
+    (existentes || []).forEach(m => {
+      const key = (m.email || "").toLowerCase() + "||" + (m.centro_id || "");
+      idxExistentes[key] = m.id;
+    });
+
+    let okIns = 0, okUpd = 0, errCount = 0;
+    for (const r of records) {
+      const key = r.email + "||" + (r.centro_id || "");
+      const existingId = idxExistentes[key];
+      if (existingId) {
+        const { error } = await sb.from("mapeo_usuarios")
+          .update({ nombre: r.nombre, es_central: r.es_central, es_admin: r.es_admin })
+          .eq("id", existingId);
+        if (error) { errCount++; console.warn("[UPD]", r, error); } else okUpd++;
+      } else {
+        const { error } = await sb.from("mapeo_usuarios").insert(r);
+        if (error) { errCount++; console.warn("[INS]", r, error); } else okIns++;
+      }
+    }
+
+    let msg = "✓ " + okIns + " nuevos, " + okUpd + " actualizados";
+    if (errors.length) msg += " (" + errors.length + " filas con error)";
+    if (errCount)      msg += " (" + errCount + " errores BD)";
+    if (errors.length || errCount) console.warn("[BULK USR] errores:", errors);
+    showToast(msg, (errCount || errors.length) ? "error" : "ok");
     if (typeof renderAdmin === "function") await renderAdmin();
   } catch (e) { showToast("✗ Error leyendo Excel: " + e.message, "error"); }
 }
