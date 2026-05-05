@@ -33,13 +33,24 @@
     <div class="text-center mb-6">
       <div class="text-[10px] tracking-widest text-stone-400 mb-1">ALMA EN PEÑA</div>
       <h1 class="text-2xl font-semibold text-stone-900">Albaranes ECI</h1>
-      <p class="text-sm text-stone-500 mt-2">Introduce tu correo y contraseña para entrar.</p>
+      <p id="login-subtitle" class="text-sm text-stone-500 mt-2">Introduce tu correo y contraseña para entrar.</p>
+    </div>
+
+    <div class="max-w-sm mx-auto mb-4 bg-stone-100 p-1 rounded-xl flex gap-1">
+      <button type="button" id="tab-signin"
+        class="flex-1 text-sm font-medium py-1.5 rounded-lg bg-white shadow-sm text-stone-900">
+        Entrar
+      </button>
+      <button type="button" id="tab-signup"
+        class="flex-1 text-sm font-medium py-1.5 rounded-lg text-stone-600 hover:text-stone-900">
+        Crear cuenta
+      </button>
     </div>
 
     <form id="form-login" class="space-y-3 max-w-sm mx-auto">
-      <input id="login-email" type="email" required placeholder="tu-correo@almapenya.com"
+      <input id="login-email" type="email" required placeholder="tu-correo@almaenpena.es"
         class="w-full px-3 py-2.5 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
-      <input id="login-password" type="password" required placeholder="Contraseña"
+      <input id="login-password" type="password" required minlength="6" placeholder="Contraseña (mín. 6 caracteres)"
         class="w-full px-3 py-2.5 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300">
       <button type="submit" id="btn-login"
         class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 rounded-lg disabled:opacity-50 inline-flex items-center justify-center gap-2">
@@ -60,11 +71,9 @@
     </div>
 
     <div class="mt-8 text-[11px] text-stone-400 text-center">
-      <button type="button" id="btn-forgot" class="text-blue-600 hover:underline text-sm">¿Olvidé mi contraseña?</button>
-      <div class="mt-2">Si no tienes acceso, pide a Horacio que te dé de alta.</div>
+      <div>Tu correo tiene que estar dado de alta. Si no, pide a Horacio que te añada.</div>
     </div>
   </div>
-
   <!-- ========== LOADING ========== -->
   <div id="screen-loading" class="bg-white rounded-2xl border border-stone-200 p-12 text-center fade-in">
     <div class="spinner mx-auto mb-3"></div>
@@ -392,6 +401,40 @@ async function onLoggedIn(user) {
   renderApp();
 }
 
+// ====== TOGGLE Entrar / Crear cuenta ======
+let authMode = "signin";
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const tSignin = $("#tab-signin");
+  const tSignup = $("#tab-signup");
+  const btn = $("#btn-login");
+  const sub = $("#login-subtitle");
+  if (mode === "signup") {
+    tSignup.className = "flex-1 text-sm font-medium py-1.5 rounded-lg bg-white shadow-sm text-stone-900";
+    tSignin.className = "flex-1 text-sm font-medium py-1.5 rounded-lg text-stone-600 hover:text-stone-900";
+    btn.textContent = "Crear cuenta";
+    sub.textContent = "Crea tu cuenta con email y contraseña.";
+  } else {
+    tSignin.className = "flex-1 text-sm font-medium py-1.5 rounded-lg bg-white shadow-sm text-stone-900";
+    tSignup.className = "flex-1 text-sm font-medium py-1.5 rounded-lg text-stone-600 hover:text-stone-900";
+    btn.textContent = "Entrar";
+    sub.textContent = "Introduce tu correo y contraseña para entrar.";
+  }
+  $("#login-msg").classList.add("hidden");
+}
+
+$("#tab-signin").onclick = () => setAuthMode("signin");
+$("#tab-signup").onclick = () => setAuthMode("signup");
+
+function showLoginMsgKind(text, kind) {
+  const m = $("#login-msg");
+  m.textContent = text;
+  m.className = "mt-4 max-w-sm mx-auto px-3 py-2.5 rounded-lg text-sm " +
+    (kind === "ok" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700");
+  m.classList.remove("hidden");
+}
+
 $("#form-login").onsubmit = async e => {
     e.preventDefault();
     const email = $("#login-email").value.trim();
@@ -399,38 +442,30 @@ $("#form-login").onsubmit = async e => {
     if (!email || !password) return;
     const btn = $("#btn-login");
     btn.disabled = true;
-    btn.textContent = "Entrando...";
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) {
-      $("#login-msg").textContent = "\u2717 " + error.message;
-      $("#login-msg").className = "mt-4 max-w-sm mx-auto px-3 py-2.5 rounded-lg text-sm bg-red-50 text-red-700";
-      $("#login-msg").classList.remove("hidden");
-    }
-    btn.disabled = false;
-    btn.textContent = "Entrar";
-  }; 
+    btn.textContent = authMode === "signup" ? "Creando..." : "Entrando...";
 
-  // ====== FORGOT PASSWORD ======
-  $("#btn-forgot").onclick = async () => {
-    const email = $("#login-email").value.trim();
-    if (!email) { 
-      $("#login-msg").textContent = "\u2717 Escribí tu email primero";
-      $("#login-msg").className = "mt-4 max-w-sm mx-auto px-3 py-2.5 rounded-lg text-sm bg-red-50 text-red-700";
-      $("#login-msg").classList.remove("hidden");
-      return;
-    }
-    const { error } = await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + window.location.pathname + "?reset=1"
-    });
-    if (error) {
-      $("#login-msg").textContent = "\u2717 " + error.message;
-      $("#login-msg").className = "mt-4 max-w-sm mx-auto px-3 py-2.5 rounded-lg text-sm bg-red-50 text-red-700";
+    if (authMode === "signup") {
+      const { data, error } = await sb.auth.signUp({ email, password });
+      if (error) {
+        showLoginMsgKind("✗ " + error.message, "err");
+      } else if (data.session) {
+        showLoginMsgKind("✓ Cuenta creada. Entrando...", "ok");
+      } else if (data.user) {
+        const { error: e2 } = await sb.auth.signInWithPassword({ email, password });
+        if (e2) {
+          showLoginMsgKind("✓ Cuenta creada. Si no entras, vuelve a intentar 'Entrar'.", "ok");
+        }
+      }
     } else {
-      $("#login-msg").textContent = "\u2713 Te enviamos un email para recuperar tu contraseña. Revisá tu bandeja de entrada.";
-      $("#login-msg").className = "mt-4 max-w-sm mx-auto px-3 py-2.5 rounded-lg text-sm bg-green-50 text-green-700";
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) {
+        showLoginMsgKind("✗ " + error.message, "err");
+      }
     }
-    $("#login-msg").classList.remove("hidden");
-  }; 
+
+    btn.disabled = false;
+    btn.textContent = authMode === "signup" ? "Crear cuenta" : "Entrar";
+  };
 
   // ====== RESET PASSWORD SAVE ======
   $("#btn-reset-save").onclick = async () => {
