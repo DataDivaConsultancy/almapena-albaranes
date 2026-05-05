@@ -1452,16 +1452,8 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v29</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v30</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
-    // Panel debug VISIBLE en la pagina, no se cierra solo
-    const dbg = document.createElement('div');
-    dbg.style.cssText = 'background:#1f2937;color:#fde68a;padding:8px 12px;border-radius:8px;font-family:monospace;font-size:11px;margin:8px 0;white-space:pre-wrap;';
-    dbg.textContent = '[DEBUG v29]\n  email: ' + state.email + '\n  centroId: ' + state.centroId + '\n  centroNombre: ' + state.centroNombre + '\n  esCentral: ' + state.esCentral + '\n  esAdmin: ' + state.esAdmin + '\n  invBorradorId: ' + invBorradorId + '\n  invScanList.length: ' + invScanList.length;
-    const existingDbg = document.getElementById('inv-dbg-panel');
-    if (existingDbg) existingDbg.remove();
-    dbg.id = 'inv-dbg-panel';
-    $("#inv-pane-centro").insertBefore(dbg, $("#inv-info"));
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
     await renderInvHistoricoCentro();
@@ -1469,34 +1461,55 @@ async function renderInventario() {
 }
 
 async function loadOrCreateBorrador() {
-  // Buscar BORRADOR del centro actual
-  const { data: borr } = await sb.from("inventarios")
+  console.log("[INV] loadOrCreateBorrador centroId=", state.centroId);
+  if (!state.centroId) {
+    showToast("✗ Tu usuario no tiene centro asignado.", "error");
+    return;
+  }
+  const sel = await sb.from("inventarios")
     .select("id, num_inventario, fecha, observaciones, lineas_inventario(ean, cantidad)")
-    .eq("centro_id", state.centroId)
-    .eq("estado", "BORRADOR")
-    .maybeSingle();
-
+    .eq("centro_id", state.centroId).eq("estado", "BORRADOR").maybeSingle();
+  if (sel.error) { showToast("✗ SELECT: " + sel.error.message, "error"); return; }
+  const borr = sel.data;
   if (borr) {
     invBorradorId = borr.id;
     invScanList = (borr.lineas_inventario || []).map(l => ({ ean: l.ean, cantidad: l.cantidad }));
     $("#inv-observaciones").value = borr.observaciones || "";
     $("#inv-info").innerHTML = '<span class="text-stone-600">Borrador en curso:</span> <span class="font-mono font-medium">' + borr.num_inventario + '</span> \u00b7 fecha ' + fmtFecha(borr.fecha);
-  } else {
-    // Crear nuevo BORRADOR
-    const fecha = today();
-    const { count } = await sb.from("inventarios").select("*", { count: "exact", head: true })
-      .eq("fecha", fecha).eq("centro_id", state.centroId);
-    const num = "INV-" + fecha.replaceAll("-","") + "-" + String((count||0)+1).padStart(3,"0");
-    const { data: nuevo, error } = await sb.from("inventarios").insert({
-      num_inventario: num, centro_id: state.centroId, fecha,
-      estado: "BORRADOR", creado_por: state.email,
-    }).select("id, num_inventario, fecha").single();
-    if (error) { showToast("X " + error.message, "error"); return; }
-    invBorradorId = nuevo.id;
-    invScanList = [];
-    $("#inv-observaciones").value = "";
-    $("#inv-info").innerHTML = '<span class="text-stone-600">Nuevo inventario:</span> <span class="font-mono font-medium">' + nuevo.num_inventario + '</span> \u00b7 fecha ' + fmtFecha(nuevo.fecha);
+    return;
   }
+  // Crear nuevo borrador con numero unico (HHMMSS + 4 ultimos centroId)
+  const fecha = today();
+  const now = new Date();
+  const hhmmss = String(now.getHours()).padStart(2,"0") + String(now.getMinutes()).padStart(2,"0") + String(now.getSeconds()).padStart(2,"0");
+  const centroSuffix = String(state.centroId || "").replace(/-/g, "").substring(0,4).toUpperCase();
+  const num = "INV-" + fecha.replace(/-/g,"") + "-" + hhmmss + "-" + centroSuffix;
+  const ins = await sb.from("inventarios").insert({
+    num_inventario: num, centro_id: state.centroId, fecha,
+    estado: "BORRADOR", creado_por: state.email,
+  }).select("id, num_inventario, fecha").single();
+  if (ins.error) {
+    // Si fue duplicate por el UNIQUE de borrador-por-centro, recuperar el existente
+    if (ins.error.code === "23505") {
+      const retry = await sb.from("inventarios")
+        .select("id, num_inventario, fecha, observaciones, lineas_inventario(ean, cantidad)")
+        .eq("centro_id", state.centroId).eq("estado", "BORRADOR").maybeSingle();
+      if (retry.data) {
+        invBorradorId = retry.data.id;
+        invScanList = (retry.data.lineas_inventario || []).map(l => ({ ean: l.ean, cantidad: l.cantidad }));
+        $("#inv-observaciones").value = retry.data.observaciones || "";
+        $("#inv-info").innerHTML = '<span class="text-stone-600">Borrador recuperado:</span> <span class="font-mono font-medium">' + retry.data.num_inventario + '</span>';
+        showToast("✓ Borrador recuperado");
+        return;
+      }
+    }
+    showToast("✗ INSERT: " + ins.error.message, "error");
+    return;
+  }
+  invBorradorId = ins.data.id;
+  invScanList = [];
+  $("#inv-observaciones").value = "";
+  $("#inv-info").innerHTML = '<span class="text-stone-600">Nuevo inventario:</span> <span class="font-mono font-medium">' + ins.data.num_inventario + '</span> \u00b7 fecha ' + fmtFecha(ins.data.fecha);
 }
 
 function pintarInvScan() {
