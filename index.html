@@ -1452,7 +1452,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v19</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v20</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1557,29 +1557,30 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     const inp = $("#inv-scan-input");
     if (inp) {
-      const processInv = () => {
+      let invDebounce = null;
+      const flushInv = () => {
         const v = inp.value.trim();
-        if (!v || !/^[0-9]+$/.test(v)) return false;
-        // Multiples de 13 (rafaga de varios EAN-13 pegados)
-        if (v.length >= 13 && v.length % 13 === 0) {
+        if (!v) return;
+        if (/^[0-9]+$/.test(v) && v.length >= 13 && v.length % 13 === 0) {
+          // Rafaga de N EANs de 13 digitos pegados
           for (let i = 0; i < v.length; i += 13) invAddScan(v.substring(i, i + 13));
-          inp.value = ""; return true;
+        } else {
+          invAddScan(v);
         }
-        // 13 digitos exactos
-        if (v.length === 13) { invAddScan(v); inp.value = ""; return true; }
-        // Otros tamanos EAN validos
-        if (v.length === 8 || v.length === 12 || v.length === 14) {
-          invAddScan(v); inp.value = ""; return true;
-        }
-        return false;
+        inp.value = "";
       };
       inp.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { e.preventDefault(); const v = inp.value.trim(); if (v) { invAddScan(v); inp.value = ""; } }
+        if (e.key === "Enter") { e.preventDefault(); clearTimeout(invDebounce); flushInv(); }
       });
-      inp.addEventListener("input", processInv);
-      inp.addEventListener("paste", () => setTimeout(processInv, 0));
-      // Poller bulletproof: cada 50ms revisa el input por si la pistola no dispara eventos DOM
-      setInterval(() => { if (inp.offsetParent !== null) processInv(); }, 50);
+      inp.addEventListener("input", () => {
+        clearTimeout(invDebounce);
+        // Esperar 500ms despues del ultimo caracter (mas largo que cualquier intervalo de pistola)
+        invDebounce = setTimeout(flushInv, 500);
+      });
+      inp.addEventListener("paste", () => {
+        clearTimeout(invDebounce);
+        setTimeout(flushInv, 50);
+      });
     }
     if ($("#inv-btn-test-scan")) {
       $("#inv-btn-test-scan").onclick = () => {
