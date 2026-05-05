@@ -214,11 +214,17 @@
         </div>
       </div>
 
-      <div class="flex items-center justify-between mb-2 mt-3">
-        <div class="text-xs font-medium text-stone-800">Líneas</div>
-        <button id="tr-add-linea" class="text-xs px-2 py-1 border border-stone-200 rounded-md hover:bg-stone-50">+ Añadir línea</button>
+      <div class="bg-stone-50 border border-stone-200 rounded-xl p-4 mb-3">
+        <label class="text-xs text-stone-500 mb-1 block">Escáner activo</label>
+        <input id="tr-scan-input" placeholder="Escanea o teclea EAN y pulsa Enter…" autocomplete="off"
+          class="w-full px-3 py-3 text-sm border-2 border-purple-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-purple-400 scanner-pulse font-mono">
       </div>
-      <div id="tr-lineas" class="flex flex-col gap-1.5 mb-4"></div>
+      <div class="flex items-baseline justify-between mb-2">
+        <div class="text-sm font-medium text-stone-800">EANs escaneados</div>
+        <div class="text-xs text-stone-500">Total: <span id="tr-scan-total" class="font-medium text-stone-900">0</span> uds</div>
+      </div>
+      <div id="tr-scan-list" class="flex flex-col gap-1.5 mb-4"></div>
+      <div id="tr-scan-vacio" class="text-center py-4 text-sm text-stone-400">No has escaneado ningún EAN.</div>
 
       <button id="btn-tr-save" class="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium py-3 rounded-lg">
         Guardar traspaso
@@ -1123,42 +1129,23 @@ $("#btn-dev-enviar").onclick = async () => {
 // CENTRO — TRASPASO
 // =====================================================
 async function renderTraspaso() {
-  const año = new Date().getFullYear();
+  const anio = new Date().getFullYear();
   const { count } = await sb.from("albaranes").select("*", { count: "exact", head: true })
     .eq("tipo", "TRASPASO");
-  $("#tr-num").value = `TRA-${año}-${String((count||0)+1).padStart(4,"0")}`;
+  $("#tr-num").value = "TRA-" + anio + "-" + String((count||0)+1).padStart(4,"0");
   $("#tr-fecha").value = today();
   $("#tr-origen").value = state.centroNombre;
   const sel = $("#tr-destino"); sel.innerHTML = "";
   state.centros.filter(c => c.id !== state.centroId).forEach(c => {
     const o = document.createElement("option"); o.value = c.id; o.textContent = c.nombre; sel.appendChild(o);
   });
-  $("#tr-lineas").innerHTML = ""; addTrLinea();
+  trScanList = [];
+  if ($("#tr-scan-input")) $("#tr-scan-input").value = "";
+  pintarTrScan();
+  setTimeout(() => $("#tr-scan-input") && $("#tr-scan-input").focus(), 100);
 }
-function addTrLinea() {
-  const div = document.createElement("div");
-  div.className = "grid grid-cols-[1fr_60px_60px_28px] gap-1.5 items-center";
-  div.innerHTML = `
-    <input placeholder="EAN o referencia" class="tr-ean px-2 py-1.5 text-xs border border-stone-200 rounded-md font-mono">
-    <input placeholder="Ref." class="tr-ref px-2 py-1.5 text-xs border border-stone-200 rounded-md text-center">
-    <input type="number" min="1" value="1" class="tr-qty px-2 py-1.5 text-xs border border-stone-200 rounded-md text-center">
-    <button class="tr-del p-1.5 border border-stone-200 rounded-md hover:bg-red-50">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-stone-600"><path d="M3 6h18M8 6v14a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6"/></svg>
-    </button>`;
-  div.querySelector(".tr-del").onclick = () => {
-    if ($("#tr-lineas").children.length === 1) return;
-    div.remove();
-  };
-  $("#tr-lineas").appendChild(div);
-}
-$("#tr-add-linea").onclick = addTrLinea;
 $("#btn-tr-save").onclick = async () => {
-  const lineas = Array.from($("#tr-lineas").children).map(d => ({
-    ean: d.querySelector(".tr-ean").value.trim(),
-    referencia: d.querySelector(".tr-ref").value.trim(),
-    cantidad: parseInt(d.querySelector(".tr-qty").value)||0,
-  })).filter(l => l.ean && l.cantidad > 0);
-  if (lineas.length === 0) { showToast("Añade al menos una línea con cantidad", "error"); return; }
+  if (!trScanList || trScanList.length === 0) { showToast("Escanea al menos un EAN", "error"); return; }
   const num = $("#tr-num").value;
   const { data: alb, error: err1 } = await sb.from("albaranes").insert({
     num_albaran: num, tipo: "TRASPASO",
@@ -1168,14 +1155,74 @@ $("#btn-tr-save").onclick = async () => {
     estado: "PENDIENTE",
   }).select("id").single();
   if (err1) { showToast("✗ " + err1.message, "error"); return; }
-
-  const lineasInsert = lineas.map(l => ({ ...l, albaran_id: alb.id }));
+  const lineasInsert = trScanList.map(l => ({ ean: l.ean, cantidad: l.cantidad, albaran_id: alb.id }));
   const { error: err2 } = await sb.from("lineas_albaran").insert(lineasInsert);
   if (err2) { showToast("✗ " + err2.message, "error"); return; }
-
-  showToast(`✓ Traspaso ${num} guardado`);
+  showToast("✓ Traspaso " + num + " guardado");
   await renderTraspaso();
 };
+
+// ====== TRASPASO scanner helpers ======
+let trScanList = [];
+function pintarTrScan() {
+  const list = $("#tr-scan-list"); if (!list) return;
+  list.innerHTML = "";
+  if (trScanList.length === 0) {
+    if ($("#tr-scan-vacio")) $("#tr-scan-vacio").classList.remove("hidden");
+    if ($("#tr-scan-total")) $("#tr-scan-total").textContent = "0";
+    return;
+  }
+  if ($("#tr-scan-vacio")) $("#tr-scan-vacio").classList.add("hidden");
+  trScanList.forEach((row, idx) => {
+    const div = document.createElement("div");
+    div.className = "flex items-center gap-3 px-3 py-2 border border-stone-200 rounded-lg";
+    div.innerHTML = '<div class="font-mono text-sm flex-1">' + row.ean + '</div>' +
+      '<div class="flex items-center gap-1">' +
+      '<button data-i="' + idx + '" data-act="minus" class="tr-act-btn w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">−</button>' +
+      '<span class="w-10 text-center text-sm font-medium">' + row.cantidad + '</span>' +
+      '<button data-i="' + idx + '" data-act="plus" class="tr-act-btn w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">+</button>' +
+      '</div>' +
+      '<button data-i="' + idx + '" data-act="del" class="tr-act-btn p-1.5 border border-stone-200 rounded-md hover:bg-red-50" title="Eliminar">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-stone-600 pointer-events-none"><path d="M3 6h18M8 6v14a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6"/></svg>' +
+      '</button>';
+    list.appendChild(div);
+  });
+  list.onclick = (e) => {
+    const btn = e.target.closest(".tr-act-btn"); if (!btn) return;
+    e.preventDefault();
+    const i = parseInt(btn.dataset.i);
+    if (isNaN(i) || !trScanList[i]) return;
+    const act = btn.dataset.act;
+    if (act === "plus") trScanList[i].cantidad++;
+    else if (act === "minus") {
+      trScanList[i].cantidad--;
+      if (trScanList[i].cantidad <= 0) trScanList.splice(i, 1);
+    } else if (act === "del") trScanList.splice(i, 1);
+    pintarTrScan();
+  };
+  if ($("#tr-scan-total")) $("#tr-scan-total").textContent = trScanList.reduce((s,r) => s + r.cantidad, 0);
+}
+function addTrScan(ean) {
+  if (!ean) return;
+  const existing = trScanList.find(r => r.ean === ean);
+  if (existing) existing.cantidad++; else trScanList.unshift({ ean, cantidad: 1 });
+  pintarTrScan();
+}
+// Listener (igual patron que devolucion)
+setTimeout(() => {
+  const trInp = $("#tr-scan-input");
+  if (trInp && !trInp._wired) {
+    trInp._wired = true;
+    trInp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const v = e.target.value.trim();
+        if (v) { addTrScan(v); e.target.value = ""; }
+      }
+    });
+  }
+}, 500);
+
 
 // =====================================================
 // TOAST
@@ -1452,7 +1499,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v31</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v32</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1526,42 +1573,33 @@ function pintarInvScan() {
     div.className = "flex items-center gap-3 px-3 py-2 border border-stone-200 rounded-lg";
     div.innerHTML = '<div class="font-mono text-sm flex-1">' + row.ean + '</div>' +
       '<div class="flex items-center gap-1">' +
-      '<button data-i="' + idx + '" data-act="minus" class="inv-act-btn w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">−</button>' +
+      '<button data-i="' + idx + '" class="inv-btn-minus w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">\u2212</button>' +
       '<span class="w-10 text-center text-sm font-medium">' + row.cantidad + '</span>' +
-      '<button data-i="' + idx + '" data-act="plus" class="inv-act-btn w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">+</button>' +
+      '<button data-i="' + idx + '" class="inv-btn-plus w-7 h-7 border border-stone-200 rounded-md hover:bg-stone-50">+</button>' +
       '</div>' +
-      '<button data-i="' + idx + '" data-act="del" class="inv-act-btn p-1.5 border border-stone-200 rounded-md hover:bg-red-50" title="Eliminar">' +
-      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-stone-600 pointer-events-none"><path d="M3 6h18M8 6v14a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6"/></svg>' +
+      '<button data-i="' + idx + '" class="inv-btn-del p-1.5 border border-stone-200 rounded-md hover:bg-red-50">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-stone-600"><path d="M3 6h18M8 6v14a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6"/></svg>' +
       '</button>';
     list.appendChild(div);
   });
-  // Event delegation: un solo listener en el contenedor
-  list.onclick = async (e) => {
-    const btn = e.target.closest(".inv-act-btn");
-    if (!btn) return;
-    e.preventDefault();
-    const i = parseInt(btn.dataset.i);
-    if (isNaN(i) || !invScanList[i]) return;
-    const act = btn.dataset.act;
-    const ean = invScanList[i].ean;
-    if (act === "plus") {
-      invScanList[i].cantidad++;
-      await persistInvLine(invScanList[i]);
-    } else if (act === "minus") {
-      invScanList[i].cantidad--;
-      if (invScanList[i].cantidad <= 0) {
-        invScanList.splice(i, 1);
-        await sb.from("lineas_inventario").delete().eq("inventario_id", invBorradorId).eq("ean", ean);
-      } else {
-        await persistInvLine(invScanList[i]);
-      }
-    } else if (act === "del") {
-      invScanList.splice(i, 1);
-      await sb.from("lineas_inventario").delete().eq("inventario_id", invBorradorId).eq("ean", ean);
+  $(".inv-btn-plus").forEach(b => b.onclick = () => { invScanList[+b.dataset.i].cantidad++; persistInvLine(invScanList[+b.dataset.i]); pintarInvScan(); });
+  $(".inv-btn-minus").forEach(b => b.onclick = () => {
+    const i = +b.dataset.i; invScanList[i].cantidad--;
+    if (invScanList[i].cantidad <= 0) {
+      const ean = invScanList[i].ean; invScanList.splice(i,1);
+      sb.from("lineas_inventario").delete().eq("inventario_id", invBorradorId).eq("ean", ean);
+    } else {
+      persistInvLine(invScanList[i]);
     }
     pintarInvScan();
-  };
-  $("#inv-scan-total").textContent = invScanList.reduce((s,r) => s + r.cantidad, 0);
+  });
+  $(".inv-btn-del").forEach(b => b.onclick = async () => {
+    const i = +b.dataset.i; const ean = invScanList[i].ean;
+    invScanList.splice(i, 1);
+    await sb.from("lineas_inventario").delete().eq("inventario_id", invBorradorId).eq("ean", ean);
+    pintarInvScan();
+  });
+  $("#inv-scan-total").textContent = invScanList.reduce((s,r)=>s+r.cantidad, 0);
   $("#inv-scan-eans").textContent = invScanList.length;
 }
 
