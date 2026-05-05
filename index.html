@@ -1557,8 +1557,21 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     const inp = $("#inv-scan-input");
     if (inp) {
+      let invDebounce = null;
+      const submitInv = () => {
+        const v = inp.value.trim();
+        if (v) { invAddScan(v); inp.value = ""; }
+      };
       inp.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") { const v = e.target.value.trim(); if (v) { invAddScan(v); e.target.value = ""; } }
+        if (e.key === "Enter") { e.preventDefault(); clearTimeout(invDebounce); submitInv(); }
+      });
+      // Auto-submit cuando es EAN valido (8+ digitos) y hay 80ms sin nueva entrada (pistola sin Enter)
+      inp.addEventListener("input", (e) => {
+        clearTimeout(invDebounce);
+        const v = inp.value.trim();
+        if (v.length >= 8 && /^[0-9]+$/.test(v)) {
+          invDebounce = setTimeout(submitInv, 80);
+        }
       });
     }
     if ($("#inv-btn-test-scan")) {
