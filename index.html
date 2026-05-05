@@ -40,7 +40,7 @@
   <div id="screen-login" class="bg-white rounded-2xl border border-stone-200 p-8 fade-in hidden">
     <div class="text-center mb-6">
       <div class="text-[10px] tracking-widest text-stone-400 mb-1">ALMA EN PEÑA</div>
-      <h1 class="text-2xl font-semibold text-stone-900">Albaranes ECI <span class="text-xs text-stone-400 font-normal align-top">v38</span></h1>
+      <h1 class="text-2xl font-semibold text-stone-900">Albaranes ECI <span class="text-xs text-stone-400 font-normal align-top">v39</span></h1>
       <p class="text-sm text-stone-500 mt-2">Introduce tu correo para entrar.</p>
     </div>
 
@@ -610,16 +610,15 @@ $("#form-login").onsubmit = async e => {
   btn.disabled = true;
   btn.textContent = "Entrando...";
 
-  // Verificar que el email existe en mapeo_usuarios
-  const { data: mapeo, error } = await sb
+  // Verificar que el email existe en mapeo_usuarios (puede tener varias filas si gestiona varios centros)
+  const { data: filas, error } = await sb
     .from("mapeo_usuarios")
     .select("email")
-    .ilike("email", email)
-    .maybeSingle();
+    .ilike("email", email);
 
   if (error) {
     showLoginMsg("✗ " + error.message, "error");
-  } else if (!mapeo) {
+  } else if (!filas || filas.length === 0) {
     showLoginMsg("✗ Ese correo no está dado de alta. Contacta con Horacio.", "error");
   } else {
     localStorage.setItem("almapena_email", email);
