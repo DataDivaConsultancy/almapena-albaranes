@@ -327,6 +327,15 @@
             <h3 class="text-base font-medium text-stone-900">Gestión de usuarios</h3>
             <p class="text-xs text-stone-500">Dar de alta, editar y asignar centros a los usuarios</p>
           </div>
+          <button id="btn-tpl-usuarios" type="button" class="text-sm border border-stone-200 hover:bg-stone-50 px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Plantilla
+          </button>
+          <label class="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5 cursor-pointer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Cargar Excel
+            <input id="file-bulk-usuarios" type="file" accept=".xlsx,.xls,.csv" class="hidden">
+          </label>
           <button id="btn-admin-add" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
             Nuevo usuario
@@ -380,6 +389,15 @@
             <h3 class="text-base font-medium text-stone-900">Gestión de centros</h3>
             <p class="text-xs text-stone-500">Alta, edición y desactivación de centros (corners ECI)</p>
           </div>
+          <button id="btn-tpl-centros" type="button" class="text-sm border border-stone-200 hover:bg-stone-50 px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Plantilla
+          </button>
+          <label class="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5 cursor-pointer">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Cargar Excel
+            <input id="file-bulk-centros" type="file" accept=".xlsx,.xls,.csv" class="hidden">
+          </label>
           <button id="btn-centro-add" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
             Nuevo centro
@@ -1492,7 +1510,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v35</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v36</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1915,6 +1933,146 @@ async function exportInventariosFiltered() {
   const cnt = (invs||[]).length;
   showToast("✓ " + cnt + " inventario(s) exportado(s)" + (selectedIds.length > 0 ? " (seleccionados)" : " (todos)"));
 }
+
+
+
+// ====== ADMIN: Subida masiva Excel/CSV ======
+function parseBoolXlsx(v, def) {
+  if (v === undefined || v === null || v === "") return def;
+  const s = String(v).toLowerCase().trim();
+  return ["si","sí","true","verdadero","1","x","yes","y"].includes(s);
+}
+
+function descargarPlantillaUsuarios() {
+  const data = [
+    ["email","nombre","centro_codigo","es_central","es_admin"],
+    ["central@almaenpena.es","Oficina Central","","SI","NO"],
+    ["castellana@almaenpena.es","Dep. Castellana","ECI-MAD-CAS","NO","NO"],
+    ["goya@almaenpena.es","Dep. Goya","ECI-MAD-GOY","NO","NO"],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws["!cols"] = [{wch:32},{wch:24},{wch:18},{wch:10},{wch:10}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Usuarios");
+  XLSX.writeFile(wb, "AlmaEnPena_Plantilla_Usuarios.xlsx");
+}
+
+function descargarPlantillaCentros() {
+  const data = [
+    ["codigo","nombre","ciudad","direccion","responsable","email","telefono","activo"],
+    ["ECI-MAD-CAS","ECI Castellana - Calzado Mujer","Madrid","Castellana 85","","","","SI"],
+    ["ECI-MAD-GOY","ECI Goya - Calzado Mujer","Madrid","Goya 76","","","","SI"],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws["!cols"] = [{wch:18},{wch:32},{wch:14},{wch:24},{wch:22},{wch:24},{wch:14},{wch:8}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Centros");
+  XLSX.writeFile(wb, "AlmaEnPena_Plantilla_Centros.xlsx");
+}
+
+async function bulkUploadCentros(file) {
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+    const records = rows.map(r => {
+      const k = Object.fromEntries(Object.entries(r).map(([kk,vv]) => [String(kk).toLowerCase().trim(), vv]));
+      return {
+        codigo: String(k.codigo || "").trim(),
+        nombre: String(k.nombre || "").trim(),
+        ciudad: String(k.ciudad || "").trim() || null,
+        direccion: String(k.direccion || "").trim() || null,
+        responsable: String(k.responsable || "").trim() || null,
+        email: String(k.email || "").trim() || null,
+        telefono: String(k.telefono || "").trim() || null,
+        activo: parseBoolXlsx(k.activo, true),
+      };
+    }).filter(c => c.codigo && c.nombre);
+    if (records.length === 0) { showToast("✗ Excel sin filas válidas (requiere codigo y nombre)", "error"); return; }
+    const { error } = await sb.from("centros").upsert(records, { onConflict: "codigo" });
+    if (error) { showToast("✗ " + error.message, "error"); return; }
+    showToast("✓ " + records.length + " centro(s) cargados/actualizados");
+    if (typeof cargarCentros === "function") await cargarCentros();
+    if (typeof renderCentrosAdmin === "function") await renderCentrosAdmin();
+  } catch (e) { showToast("✗ Error leyendo Excel: " + e.message, "error"); }
+}
+
+async function bulkUploadUsuarios(file) {
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+    const { data: centros } = await sb.from("centros").select("id, codigo, nombre");
+    const codigoMap = {};
+    (centros || []).forEach(c => {
+      if (c.codigo) codigoMap[String(c.codigo).toLowerCase().trim()] = c.id;
+      if (c.nombre) codigoMap[String(c.nombre).toLowerCase().trim()] = c.id;
+    });
+    const records = [];
+    const errors = [];
+    rows.forEach((r, idx) => {
+      const k = Object.fromEntries(Object.entries(r).map(([kk,vv]) => [String(kk).toLowerCase().trim(), vv]));
+      const email = String(k.email || "").trim().toLowerCase();
+      if (!email) return;
+      const centroKey = String(k.centro_codigo || k.centro || "").trim().toLowerCase();
+      let centro_id = null;
+      if (centroKey) {
+        centro_id = codigoMap[centroKey] || null;
+        if (!centro_id) { errors.push("Fila " + (idx+2) + " (" + email + "): centro '" + centroKey + "' no encontrado"); return; }
+      }
+      records.push({
+        email, nombre: String(k.nombre || "").trim() || null,
+        centro_id,
+        es_central: parseBoolXlsx(k.es_central, false),
+        es_admin: parseBoolXlsx(k.es_admin, false),
+      });
+    });
+    if (records.length === 0) {
+      showToast("✗ No hay filas válidas. " + errors.slice(0,3).join("; "), "error");
+      return;
+    }
+    const { error } = await sb.from("mapeo_usuarios").upsert(records, { onConflict: "email" });
+    if (error) { showToast("✗ " + error.message, "error"); return; }
+    let msg = "✓ " + records.length + " usuario(s) cargados/actualizados";
+    if (errors.length) msg += " (" + errors.length + " errores; ver consola)";
+    if (errors.length) console.warn("[BULK USR] errores:", errors);
+    showToast(msg);
+    if (typeof renderAdmin === "function") await renderAdmin();
+  } catch (e) { showToast("✗ Error leyendo Excel: " + e.message, "error"); }
+}
+
+// Hook handlers cuando entran a admin (renderAdmin) y al cambiar subtab
+function hookBulkButtons() {
+  const t1 = document.getElementById("btn-tpl-usuarios");
+  if (t1 && !t1._wired) { t1._wired = true; t1.onclick = descargarPlantillaUsuarios; }
+  const t2 = document.getElementById("btn-tpl-centros");
+  if (t2 && !t2._wired) { t2._wired = true; t2.onclick = descargarPlantillaCentros; }
+  const f1 = document.getElementById("file-bulk-usuarios");
+  if (f1 && !f1._wired) {
+    f1._wired = true;
+    f1.addEventListener("change", async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      await bulkUploadUsuarios(file);
+      e.target.value = "";
+    });
+  }
+  const f2 = document.getElementById("file-bulk-centros");
+  if (f2 && !f2._wired) {
+    f2._wired = true;
+    f2.addEventListener("change", async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      await bulkUploadCentros(file);
+      e.target.value = "";
+    });
+  }
+}
+// Llamar al cargar
+setTimeout(hookBulkButtons, 600);
+// Y cuando se entra al tab admin (también via subtabs)
+setTimeout(() => {
+  const su = document.getElementById("subtab-usuarios");
+  const sc = document.getElementById("subtab-centros");
+  if (su) su.addEventListener("click", () => setTimeout(hookBulkButtons, 50));
+  if (sc) sc.addEventListener("click", () => setTimeout(hookBulkButtons, 50));
+}, 1000);
 
 </script>
 </body>
