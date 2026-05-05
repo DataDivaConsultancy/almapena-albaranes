@@ -93,6 +93,7 @@
           Exportar Excel
         </button>
         <div class="flex-1"></div>
+        <label class="flex items-center gap-1.5 text-xs text-stone-600 mr-2"><input type="checkbox" id="env-select-all" class="rounded"> Sel. todos</label>
         <select id="filter-centro" class="text-sm border border-stone-200 rounded-lg px-2 py-2 bg-white">
           <option value="">Todos los centros</option>
         </select>
@@ -108,6 +109,7 @@
     <div id="tab-central-devoluciones" class="tab-pane bg-white rounded-2xl border border-stone-200 p-4 hidden">
       <div class="flex items-center justify-between mb-3">
         <h3 class="text-base font-medium text-stone-900">Devoluciones recibidas de los centros</h3>
+        <label class="flex items-center gap-1.5 text-xs text-stone-600 mr-2"><input type="checkbox" id="dev-select-all" class="rounded"> Sel. todos</label>
         <button id="btn-export-devoluciones" class="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
           Exportar Excel
@@ -290,6 +292,7 @@
           <select id="inv-filter-centro" class="text-sm border border-stone-200 rounded-lg px-2 py-2 bg-white">
             <option value="">Todos los centros</option>
           </select>
+          <label class="flex items-center gap-1.5 text-xs text-stone-600 ml-2"><input type="checkbox" id="inv-select-all" class="rounded"> Sel. todos</label>
           <button id="inv-btn-refresh" class="text-sm border border-stone-200 hover:bg-stone-50 px-3 py-2 rounded-lg">↻ Refrescar</button>
           <div class="flex-1"></div>
           <button id="inv-btn-export" class="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
@@ -765,54 +768,39 @@ function renderCentralEnvios() {
   envios.forEach(e => {
     const recibido = !!e.fecha_recepcion;
     const tieneInc = !!e.incidencia;
+    const wrap = document.createElement("div");
+    wrap.className = "flex items-stretch gap-2";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.className = "env-check shrink-0 self-center ml-1"; cb.dataset.id = e.id;
+    wrap.appendChild(cb);
     const det = document.createElement("details");
-    det.className = "border border-stone-200 rounded-lg overflow-hidden";
-    det.innerHTML = `
-      <summary class="grid grid-cols-[16px_auto_1fr_auto_auto] gap-3 items-center px-3 py-2.5 hover:bg-stone-50">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
-        <div>
-          <div class="text-sm font-medium text-stone-900 flex items-center gap-1.5">
-            ${e.num_albaran}
-            ${tieneInc ? `<span title="Incidencia" class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 font-medium">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-              Incidencia
-            </span>` : ""}
-          </div>
-          <div class="text-[11px] text-stone-500">${e.centro_destino} · ${e.total_uds} uds · ${e.total_lineas} líneas</div>
-        </div>
-        <div></div>
-        <div class="text-right">
-          <div class="text-[11px] text-stone-500">Envío</div>
-          <div class="text-sm text-stone-900">${fmtFecha(e.fecha_envio)}</div>
-        </div>
-        <div class="text-right">
-          <div class="text-[11px] text-stone-500">Recepción</div>
-          ${recibido
-            ? `<div class="text-sm text-green-700 font-medium">${fmtFecha(e.fecha_recepcion)}</div>`
-            : `<div class="text-sm text-amber-700 font-medium">Pendiente</div>`}
-        </div>
-      </summary>
-      <div class="px-3 py-2 bg-stone-50 border-t border-stone-200 space-y-2">
-        ${tieneInc ? `<div class="bg-red-50 border border-red-200 rounded-lg p-2.5 flex gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#991b1b" stroke-width="2" class="shrink-0 mt-0.5"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
-          <div class="text-xs">
-            <div class="font-medium text-red-900 mb-0.5">Incidencia reportada por el centro</div>
-            <div class="text-red-800 whitespace-pre-line">${escapeHtml(e.incidencia)}</div>
-          </div>
-        </div>` : ""}
-        <table class="w-full text-xs">
-          <thead class="text-stone-500"><tr><th class="text-left py-1 font-normal">EAN</th><th class="text-left py-1 font-normal">Referencia</th><th class="text-right py-1 font-normal">Cantidad</th></tr></thead>
-          <tbody>
-            ${(e.lineas||[]).map(l => `<tr class="border-t border-stone-200">
-              <td class="py-1.5 font-mono">${l.ean}</td>
-              <td class="py-1.5">${l.referencia||""}</td>
-              <td class="py-1.5 text-right font-medium">${l.cantidad}</td>
-            </tr>`).join("")}
-          </tbody>
-        </table>
-      </div>`;
-    lista.appendChild(det);
+    det.className = "flex-1 border border-stone-200 rounded-lg overflow-hidden";
+    det.innerHTML = '<summary class="grid grid-cols-[16px_auto_1fr_auto_auto] gap-3 items-center px-3 py-2.5 hover:bg-stone-50">' +
+      '<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>' +
+      '<div><div class="text-sm font-medium text-stone-900 flex items-center gap-1.5">' + e.num_albaran +
+      (tieneInc ? ' <span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 font-medium">Incidencia</span>' : '') +
+      '</div><div class="text-[11px] text-stone-500">' + e.centro_destino + ' · ' + e.total_uds + ' uds · ' + e.total_lineas + ' líneas</div></div>' +
+      '<div></div>' +
+      '<div class="text-right"><div class="text-[11px] text-stone-500">Envío</div><div class="text-sm text-stone-900">' + fmtFecha(e.fecha_envio) + '</div></div>' +
+      '<div class="text-right"><div class="text-[11px] text-stone-500">Recepción</div>' +
+      (recibido ? '<div class="text-sm text-green-700 font-medium">' + fmtFecha(e.fecha_recepcion) + '</div>' : '<div class="text-sm text-amber-700 font-medium">Pendiente</div>') +
+      '</div></summary>' +
+      '<div class="px-3 py-2 bg-stone-50 border-t border-stone-200 space-y-2">' +
+      (tieneInc ? '<div class="bg-red-50 border border-red-200 rounded-lg p-2.5"><div class="text-xs font-medium text-red-900 mb-0.5">Incidencia reportada</div><div class="text-xs text-red-800 whitespace-pre-line">' + escapeHtml(e.incidencia) + '</div></div>' : '') +
+      '<table class="w-full text-xs"><thead class="text-stone-500"><tr><th class="text-left py-1 font-normal">EAN</th><th class="text-left py-1 font-normal">Referencia</th><th class="text-right py-1 font-normal">Cantidad</th></tr></thead><tbody>' +
+      (e.lineas||[]).map(l => '<tr class="border-t border-stone-200"><td class="py-1.5 font-mono">' + l.ean + '</td><td class="py-1.5">' + (l.referencia||"") + '</td><td class="py-1.5 text-right font-medium">' + l.cantidad + '</td></tr>').join("") +
+      '</tbody></table></div>';
+    wrap.appendChild(det);
+    lista.appendChild(wrap);
   });
+  // Select all + hook export
+  const selAll = $("#env-select-all");
+  if (selAll) {
+    selAll.checked = false;
+    selAll.onchange = () => { $$(".env-check").forEach(c => c.checked = selAll.checked); };
+  }
+  const expBtn = document.getElementById("btn-export-envios");
+  if (expBtn) expBtn.onclick = exportEnviosFiltered;
 }
 
 // Carga de Excel
@@ -918,47 +906,41 @@ function renderCentralDevoluciones() {
 
   state.devoluciones.forEach(d => {
     const totalUds = (d.lineas||[]).reduce((s,l) => s + l.cantidad, 0);
+    const wrap = document.createElement("div");
+    wrap.className = "flex items-stretch gap-2";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.className = "dev-check shrink-0 self-center ml-1"; cb.dataset.id = d.id;
+    wrap.appendChild(cb);
     const det = document.createElement("details");
-    det.className = "border border-stone-200 rounded-lg overflow-hidden";
-    det.innerHTML = `
-      <summary class="grid grid-cols-[16px_1fr_auto_auto] gap-3 items-center px-3 py-2.5 hover:bg-stone-50">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
-        <div>
-          <div class="text-sm font-medium text-stone-900">${d.num_devolucion}</div>
-          <div class="text-[11px] text-stone-500">${d.centros.nombre} · ${(d.lineas||[]).length} EANs · ${totalUds} uds</div>
-        </div>
-        <div class="text-right">
-          <div class="text-[11px] text-stone-500">Fecha</div>
-          <div class="text-sm">${fmtFecha(d.fecha)}</div>
-        </div>
-        <div class="text-right">
-          ${d.estado === "ENVIADO_ALMACEN"
-            ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-800">Enviado almacén</span>'
-            : '<span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Pendiente almacén</span>'}
-        </div>
-      </summary>
-      <div class="px-3 py-2 bg-stone-50 border-t border-stone-200 space-y-2">
-        <table class="w-full text-xs">
-          <thead class="text-stone-500"><tr><th class="text-left py-1 font-normal">EAN</th><th class="text-right py-1 font-normal">Cantidad</th></tr></thead>
-          <tbody>
-            ${(d.lineas||[]).map(l => `<tr class="border-t border-stone-200">
-              <td class="py-1.5 font-mono">${l.ean}</td>
-              <td class="py-1.5 text-right font-medium">${l.cantidad}</td>
-            </tr>`).join("")}
-          </tbody>
-        </table>
-        ${d.estado !== "ENVIADO_ALMACEN" ? `
-          <button data-id="${d.id}" class="btn-mark-sent w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium py-2 rounded-lg">
-            Marcar como enviado a almacén
-          </button>` : ""}
-      </div>`;
-    lista.appendChild(det);
+    det.className = "flex-1 border border-stone-200 rounded-lg overflow-hidden";
+    det.innerHTML = '<summary class="grid grid-cols-[16px_1fr_auto_auto] gap-3 items-center px-3 py-2.5 hover:bg-stone-50">' +
+      '<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>' +
+      '<div><div class="text-sm font-medium text-stone-900">' + d.num_devolucion + '</div>' +
+      '<div class="text-[11px] text-stone-500">' + d.centros.nombre + ' · ' + (d.lineas||[]).length + ' EANs · ' + totalUds + ' uds</div></div>' +
+      '<div class="text-right"><div class="text-[11px] text-stone-500">Fecha</div><div class="text-sm">' + fmtFecha(d.fecha) + '</div></div>' +
+      '<div class="text-right">' + (d.estado === "ENVIADO_ALMACEN" ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-800">Enviado almacén</span>' : '<span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Pendiente almacén</span>') + '</div></summary>' +
+      '<div class="px-3 py-2 bg-stone-50 border-t border-stone-200 space-y-2">' +
+      '<table class="w-full text-xs"><thead class="text-stone-500"><tr><th class="text-left py-1 font-normal">EAN</th><th class="text-right py-1 font-normal">Cantidad</th></tr></thead><tbody>' +
+      (d.lineas||[]).map(l => '<tr class="border-t border-stone-200"><td class="py-1.5 font-mono">' + l.ean + '</td><td class="py-1.5 text-right font-medium">' + l.cantidad + '</td></tr>').join("") +
+      '</tbody></table>' +
+      (d.estado !== "ENVIADO_ALMACEN" ? '<button data-id="' + d.id + '" class="btn-mark-sent w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium py-2 rounded-lg">Marcar como enviado a almacén</button>' : '') +
+      '</div>';
+    wrap.appendChild(det);
+    lista.appendChild(wrap);
   });
   $$(".btn-mark-sent").forEach(b => b.onclick = async () => {
     const { error } = await sb.from("devoluciones").update({ estado: "ENVIADO_ALMACEN" }).eq("id", b.dataset.id);
     if (error) showToast("✗ " + error.message, "error");
     else { showToast("✓ Marcada como enviada"); await cargarDevoluciones(); renderCentralDevoluciones(); }
   });
+  // Select all + hook export
+  const selAll = $("#dev-select-all");
+  if (selAll) {
+    selAll.checked = false;
+    selAll.onchange = () => { $$(".dev-check").forEach(c => c.checked = selAll.checked); };
+  }
+  const expBtn = document.getElementById("btn-export-devoluciones");
+  if (expBtn) expBtn.onclick = exportDevolucionesFiltered;
 }
 
 // =====================================================
@@ -1510,7 +1492,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v34</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v35</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1728,7 +1710,6 @@ async function renderInvHistoricoCentro() {
 }
 
 async function renderInvCentral() {
-  // Cargar centros para el filtro
   const fc = $("#inv-filter-centro"); const valActual = fc.value;
   fc.innerHTML = '<option value="">Todos los centros</option>';
   state.centros.forEach(c => {
@@ -1743,22 +1724,27 @@ async function renderInvCentral() {
     .order("fecha", { ascending: false }).order("created_at", { ascending: false });
   if (fc.value) q = q.eq("centro_id", fc.value);
   const { data: invs, error } = await q;
-  if (error) { showToast("X " + error.message, "error"); return; }
+  if (error) { showToast("✗ " + error.message, "error"); return; }
 
   const lista = $("#inv-lista-central"); lista.innerHTML = "";
   if (!invs || invs.length === 0) { $("#inv-vacio-central").classList.remove("hidden"); return; }
   $("#inv-vacio-central").classList.add("hidden");
 
   invs.forEach(i => {
+    const wrap = document.createElement("div");
+    wrap.className = "flex items-stretch gap-2";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.className = "inv-check shrink-0 self-center ml-1"; cb.dataset.id = i.id;
+    wrap.appendChild(cb);
     const det = document.createElement("details");
-    det.className = "border border-stone-200 rounded-lg overflow-hidden";
+    det.className = "flex-1 border border-stone-200 rounded-lg overflow-hidden";
     const estadoBadge = i.estado === "CERRADO"
       ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-800">CERRADO</span>'
       : '<span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">BORRADOR</span>';
-    det.innerHTML = '<summary class="grid grid-cols-[16px_1fr_auto_auto] gap-3 items-center px-3 py-2.5 hover:bg-stone-50 cursor-pointer">' +
+    det.innerHTML = '<summary class="grid grid-cols-[16px_1fr_auto_auto] gap-3 items-center px-3 py-2.5 hover:bg-stone-50">' +
       '<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>' +
       '<div><div class="text-sm font-medium text-stone-900 font-mono">' + i.num_inventario + '</div>' +
-      '<div class="text-[11px] text-stone-500">' + (i.centro_nombre || "?") + ' \u00b7 ' + fmtFecha(i.fecha) + ' \u00b7 ' + i.total_eans + ' EANs \u00b7 ' + i.total_uds + ' uds</div></div>' +
+      '<div class="text-[11px] text-stone-500">' + (i.centro_nombre || "?") + ' · ' + fmtFecha(i.fecha) + ' · ' + i.total_eans + ' EANs · ' + i.total_uds + ' uds</div></div>' +
       '<div class="text-right text-[11px] text-stone-500">' + (i.creado_por || "") + '</div>' +
       estadoBadge +
       '<button class="inv-del-btn ml-2 text-[10px] text-red-500 hover:text-red-700 hover:underline" data-id="' + i.id + '" data-num="' + i.num_inventario + '">Eliminar</button>' +
@@ -1768,9 +1754,10 @@ async function renderInvCentral() {
       '<table class="w-full text-xs"><thead class="text-stone-500"><tr><th class="text-left py-1 font-normal">EAN</th><th class="text-right py-1 font-normal">Cantidad</th></tr></thead><tbody>' +
       (i.lineas || []).map(l => '<tr class="border-t border-stone-200"><td class="py-1.5 font-mono">' + l.ean + '</td><td class="py-1.5 text-right font-medium">' + l.cantidad + '</td></tr>').join("") +
       '</tbody></table></div>';
-    lista.appendChild(det);
+    wrap.appendChild(det);
+    lista.appendChild(wrap);
   });
-  // Manejadores eliminar inventario
+  // Hooks eliminar inventario
   lista.querySelectorAll(".inv-del-btn").forEach(btn => {
     btn.onclick = async (ev) => {
       ev.preventDefault(); ev.stopPropagation();
@@ -1781,6 +1768,14 @@ async function renderInvCentral() {
       await renderInvCentral();
     };
   });
+  // Select all + hook export
+  const selAll = $("#inv-select-all");
+  if (selAll) {
+    selAll.checked = false;
+    selAll.onchange = () => { $$(".inv-check").forEach(c => c.checked = selAll.checked); };
+  }
+  const expBtn = document.getElementById("inv-btn-export");
+  if (expBtn) expBtn.onclick = exportInventariosFiltered;
 }
 
 async function exportInventariosExcel() {
@@ -1845,6 +1840,81 @@ setTimeout(() => {
   const b = document.getElementById("btn-export-traspasos");
   if (b && !b._wired) { b._wired = true; b.onclick = exportTraspasosExcel; }
 }, 800);
+
+
+async function exportEnviosFiltered() {
+  const selectedIds = $$(".env-check:checked").map(c => c.dataset.id);
+  let q = sb.from("albaranes_con_total")
+    .select("*, lineas:lineas_albaran(ean, referencia, cantidad)")
+    .eq("tipo", "ENVIO")
+    .order("fecha_envio", { ascending: false });
+  if (selectedIds.length > 0) q = q.in("id", selectedIds);
+  const { data: albs, error } = await q;
+  if (error) { showToast("✗ " + error.message, "error"); return; }
+  const rows = [["Num albarán","Fecha envío","Centro destino","Fecha recepción","Estado","Incidencia","Recepcionado por","EAN","Referencia","Cantidad"]];
+  (albs || []).forEach(a => {
+    const lineas = a.lineas && a.lineas.length ? a.lineas : [{ean:"",referencia:"",cantidad:0}];
+    lineas.forEach(l => {
+      rows.push([a.num_albaran, a.fecha_envio || "", a.centro_destino || "", a.fecha_recepcion || "", a.estado || "", a.incidencia || "", a.recepcionado_por || "", l.ean || "", l.referencia || "", l.cantidad || 0]);
+    });
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{wch:18},{wch:12},{wch:32},{wch:14},{wch:13},{wch:30},{wch:28},{wch:16},{wch:18},{wch:8}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Envios");
+  XLSX.writeFile(wb, "AlmaEnPena_Envios_" + today() + ".xlsx");
+  const cnt = (albs||[]).length;
+  showToast("✓ " + cnt + " envío(s) exportado(s)" + (selectedIds.length > 0 ? " (seleccionados)" : " (todos)"));
+}
+
+async function exportDevolucionesFiltered() {
+  const selectedIds = $$(".dev-check:checked").map(c => c.dataset.id);
+  let q = sb.from("devoluciones")
+    .select("*, centros(nombre), lineas:lineas_devolucion(ean, cantidad)")
+    .order("fecha", { ascending: false });
+  if (selectedIds.length > 0) q = q.in("id", selectedIds);
+  const { data: devs, error } = await q;
+  if (error) { showToast("✗ " + error.message, "error"); return; }
+  const rows = [["Num devolución","Fecha","Centro origen","Estado","Creado por","Observaciones","EAN","Cantidad"]];
+  (devs || []).forEach(d => {
+    const lineas = d.lineas && d.lineas.length ? d.lineas : [{ean:"",cantidad:0}];
+    lineas.forEach(l => {
+      rows.push([d.num_devolucion, d.fecha || "", d.centros ? d.centros.nombre : "", d.estado || "", d.creado_por || "", d.observaciones || "", l.ean || "", l.cantidad || 0]);
+    });
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{wch:20},{wch:12},{wch:32},{wch:18},{wch:28},{wch:30},{wch:16},{wch:8}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Devoluciones");
+  XLSX.writeFile(wb, "AlmaEnPena_Devoluciones_" + today() + ".xlsx");
+  const cnt = (devs||[]).length;
+  showToast("✓ " + cnt + " devolución(es) exportada(s)" + (selectedIds.length > 0 ? " (seleccionados)" : " (todos)"));
+}
+
+async function exportInventariosFiltered() {
+  const selectedIds = $$(".inv-check:checked").map(c => c.dataset.id);
+  const fc = $("#inv-filter-centro");
+  let q = sb.from("inventarios_con_total")
+    .select("*, lineas:lineas_inventario(ean, cantidad)")
+    .order("fecha", { ascending: false });
+  if (selectedIds.length > 0) q = q.in("id", selectedIds);
+  else if (fc && fc.value) q = q.eq("centro_id", fc.value);
+  const { data: invs, error } = await q;
+  if (error) { showToast("✗ " + error.message, "error"); return; }
+  const rows = [["Fecha","Centro","EAN","Cantidad"]];
+  (invs || []).forEach(i => {
+    (i.lineas || []).forEach(l => {
+      rows.push([i.fecha || "", i.centro_nombre || "", l.ean || "", l.cantidad || 0]);
+    });
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{wch:12},{wch:32},{wch:16},{wch:8}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Inventarios");
+  XLSX.writeFile(wb, "AlmaEnPena_Inventarios_" + today() + ".xlsx");
+  const cnt = (invs||[]).length;
+  showToast("✓ " + cnt + " inventario(s) exportado(s)" + (selectedIds.length > 0 ? " (seleccionados)" : " (todos)"));
+}
 
 </script>
 </body>
