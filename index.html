@@ -88,6 +88,10 @@
           Plantilla
         </button>
         <button id="btn-refresh-envios" class="text-sm border border-stone-200 hover:bg-stone-50 px-3 py-2 rounded-lg">↻ Refrescar</button>
+        <button id="btn-export-envios" class="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Exportar Excel
+        </button>
         <div class="flex-1"></div>
         <select id="filter-centro" class="text-sm border border-stone-200 rounded-lg px-2 py-2 bg-white">
           <option value="">Todos los centros</option>
@@ -102,7 +106,13 @@
 
     <!-- ----- CENTRAL: Devoluciones ----- -->
     <div id="tab-central-devoluciones" class="tab-pane bg-white rounded-2xl border border-stone-200 p-4 hidden">
-      <h3 class="text-base font-medium text-stone-900 mb-3">Devoluciones recibidas de los centros</h3>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-medium text-stone-900">Devoluciones recibidas de los centros</h3>
+        <button id="btn-export-devoluciones" class="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Exportar Excel
+        </button>
+      </div>
       <div id="lista-devoluciones" class="flex flex-col gap-2"></div>
       <div id="devoluciones-vacio" class="text-center py-10 text-sm text-stone-400 hidden">
         No hay devoluciones recibidas.
@@ -1298,6 +1308,74 @@ $("#btn-centro-save").onclick = async () => {
   await renderCentrosAdmin();
   await cargarCentros();
 };
+
+
+// ====== EXPORTAR ENVIOS / DEVOLUCIONES A EXCEL ======
+$("#btn-export-envios").onclick = async () => {
+  const { data: albs, error } = await sb.from("albaranes_con_total")
+    .select("*, lineas:lineas_albaran(ean, referencia, cantidad)")
+    .eq("tipo", "ENVIO")
+    .order("fecha_envio", { ascending: false });
+  if (error) { showToast("X " + error.message, "error"); return; }
+
+  const rows = [["Num albaran","Fecha envio","Centro destino","Fecha recepcion","Estado","Incidencia","Recepcionado por","EAN","Referencia","Cantidad"]];
+  (albs || []).forEach(a => {
+    const lineas = a.lineas && a.lineas.length ? a.lineas : [{ean:"",referencia:"",cantidad:0}];
+    lineas.forEach(l => {
+      rows.push([
+        a.num_albaran,
+        a.fecha_envio || "",
+        a.centro_destino || "",
+        a.fecha_recepcion || "",
+        a.estado || "",
+        a.incidencia || "",
+        a.recepcionado_por || "",
+        l.ean || "",
+        l.referencia || "",
+        l.cantidad || 0,
+      ]);
+    });
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{wch:18},{wch:12},{wch:32},{wch:14},{wch:13},{wch:30},{wch:28},{wch:16},{wch:18},{wch:8}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Envios");
+  XLSX.writeFile(wb, "AlmaEnPena_Envios_" + today() + ".xlsx");
+  showToast("OK " + (albs||[]).length + " albaranes exportados");
+};
+
+$("#btn-export-devoluciones").onclick = async () => {
+  const { data: devs, error } = await sb.from("devoluciones")
+    .select("*, centros(nombre), lineas:lineas_devolucion(ean, cantidad)")
+    .order("fecha", { ascending: false });
+  if (error) { showToast("X " + error.message, "error"); return; }
+
+  const rows = [["Num devolucion","Fecha","Centro origen","Estado","Creado por","Observaciones","EAN","Cantidad"]];
+  (devs || []).forEach(d => {
+    const lineas = d.lineas && d.lineas.length ? d.lineas : [{ean:"",cantidad:0}];
+    lineas.forEach(l => {
+      rows.push([
+        d.num_devolucion,
+        d.fecha || "",
+        d.centros ? d.centros.nombre : "",
+        d.estado || "",
+        d.creado_por || "",
+        d.observaciones || "",
+        l.ean || "",
+        l.cantidad || 0,
+      ]);
+    });
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{wch:20},{wch:12},{wch:32},{wch:18},{wch:28},{wch:30},{wch:16},{wch:8}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Devoluciones");
+  XLSX.writeFile(wb, "AlmaEnPena_Devoluciones_" + today() + ".xlsx");
+  showToast("OK " + (devs||[]).length + " devoluciones exportadas");
+};
+
 </script>
 </body>
 </html>
