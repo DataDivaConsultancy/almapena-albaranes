@@ -121,7 +121,16 @@
 
     <!-- ----- CENTRAL: Traspasos ----- -->
     <div id="tab-central-traspasos" class="tab-pane bg-white rounded-2xl border border-stone-200 p-4 hidden">
-      <h3 class="text-base font-medium text-stone-900 mb-3">Traspasos entre centros</h3>
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-medium text-stone-900">Traspasos entre centros</h3>
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-1.5 text-xs text-stone-600"><input type="checkbox" id="tra-select-all" class="rounded"> Sel. todos</label>
+          <button id="btn-export-traspasos" class="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Exportar Excel
+          </button>
+        </div>
+      </div>
       <div id="lista-traspasos" class="flex flex-col gap-2"></div>
       <div id="traspasos-vacio" class="text-center py-10 text-sm text-stone-400 hidden">
         Aún no hay traspasos registrados.
@@ -961,34 +970,33 @@ function renderCentralTraspasos() {
   $("#traspasos-vacio").classList.add("hidden");
 
   state.traspasos.forEach(t => {
+    const wrap = document.createElement("div");
+    wrap.className = "flex items-stretch gap-2";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.className = "tra-check shrink-0 self-center ml-1"; cb.dataset.id = t.id;
+    wrap.appendChild(cb);
     const det = document.createElement("details");
-    det.className = "border border-stone-200 rounded-lg overflow-hidden";
-    det.innerHTML = `
-      <summary class="grid grid-cols-[16px_1fr_auto] gap-3 items-center px-3 py-2.5 hover:bg-stone-50">
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
-        <div>
-          <div class="text-sm font-medium text-stone-900">${t.num_albaran}</div>
-          <div class="text-[11px] text-stone-500">${t.centro_origen||"?"} → ${t.centro_destino} · ${t.total_uds} uds</div>
-        </div>
-        <div class="text-right">
-          <div class="text-[11px] text-stone-500">Fecha</div>
-          <div class="text-sm">${fmtFecha(t.fecha_envio)}</div>
-        </div>
-      </summary>
-      <div class="px-3 py-2 bg-stone-50 border-t border-stone-200">
-        <table class="w-full text-xs">
-          <thead class="text-stone-500"><tr><th class="text-left py-1 font-normal">EAN</th><th class="text-left py-1 font-normal">Ref.</th><th class="text-right py-1 font-normal">Cantidad</th></tr></thead>
-          <tbody>
-            ${(t.lineas||[]).map(l => `<tr class="border-t border-stone-200">
-              <td class="py-1.5 font-mono">${l.ean}</td>
-              <td class="py-1.5">${l.referencia||""}</td>
-              <td class="py-1.5 text-right font-medium">${l.cantidad}</td>
-            </tr>`).join("")}
-          </tbody>
-        </table>
-      </div>`;
-    lista.appendChild(det);
+    det.className = "flex-1 border border-stone-200 rounded-lg overflow-hidden";
+    det.innerHTML = '<summary class="grid grid-cols-[16px_1fr_auto] gap-3 items-center px-3 py-2.5 hover:bg-stone-50">' +
+      '<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>' +
+      '<div><div class="text-sm font-medium text-stone-900">' + t.num_albaran + '</div>' +
+      '<div class="text-[11px] text-stone-500">' + (t.centro_origen||"?") + ' → ' + t.centro_destino + ' · ' + t.total_uds + ' uds</div></div>' +
+      '<div class="text-right"><div class="text-[11px] text-stone-500">Fecha</div><div class="text-sm">' + fmtFecha(t.fecha_envio) + '</div></div></summary>' +
+      '<div class="px-3 py-2 bg-stone-50 border-t border-stone-200">' +
+      '<table class="w-full text-xs"><thead class="text-stone-500"><tr><th class="text-left py-1 font-normal">EAN</th><th class="text-right py-1 font-normal">Cantidad</th></tr></thead><tbody>' +
+      (t.lineas||[]).map(l => '<tr class="border-t border-stone-200"><td class="py-1.5 font-mono">' + l.ean + '</td><td class="py-1.5 text-right font-medium">' + l.cantidad + '</td></tr>').join("") +
+      '</tbody></table></div>';
+    wrap.appendChild(det);
+    lista.appendChild(wrap);
   });
+  // Select all
+  const selAll = $("#tra-select-all");
+  if (selAll) {
+    selAll.checked = false;
+    selAll.onchange = () => {
+      $(".tra-check").forEach(c => c.checked = selAll.checked);
+    };
+  }
 }
 
 // =====================================================
@@ -1499,7 +1507,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v32</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v33</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1796,6 +1804,44 @@ async function exportInventariosExcel() {
   XLSX.writeFile(wb, "AlmaEnPena_Inventarios_" + today() + ".xlsx");
   showToast("OK " + (invs||[]).length + " inventarios exportados");
 }
+
+
+
+// ====== EXPORTAR TRASPASOS A EXCEL ======
+async function exportTraspasosExcel() {
+  const selectedIds = $(".tra-check:checked").map(c => c.dataset.id);
+  let q = sb.from("albaranes_con_total")
+    .select("*, lineas:lineas_albaran(ean, referencia, cantidad)")
+    .eq("tipo", "TRASPASO")
+    .order("fecha_envio", { ascending: false });
+  if (selectedIds.length > 0) q = q.in("id", selectedIds);
+  const { data: traspasos, error } = await q;
+  if (error) { showToast("✗ " + error.message, "error"); return; }
+
+  const rows = [["Num albaran","Fecha envio","Centro origen","Centro destino","Estado","EAN","Cantidad"]];
+  (traspasos || []).forEach(t => {
+    const lineas = t.lineas && t.lineas.length ? t.lineas : [{ean:"",cantidad:0}];
+    lineas.forEach(l => {
+      rows.push([
+        t.num_albaran, t.fecha_envio || "",
+        t.centro_origen || "", t.centro_destino || "",
+        t.estado || "", l.ean || "", l.cantidad || 0,
+      ]);
+    });
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{wch:18},{wch:12},{wch:32},{wch:32},{wch:13},{wch:16},{wch:8}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Traspasos");
+  XLSX.writeFile(wb, "AlmaEnPena_Traspasos_" + today() + ".xlsx");
+  const cnt = (traspasos||[]).length;
+  showToast("✓ " + cnt + " traspaso" + (cnt!==1?"s":"") + " exportado" + (cnt!==1?"s":"") + (selectedIds.length > 0 ? " (seleccionados)" : " (todos)"));
+}
+// Hook con setTimeout para asegurar que el boton existe
+setTimeout(() => {
+  const b = document.getElementById("btn-export-traspasos");
+  if (b && !b._wired) { b._wired = true; b.onclick = exportTraspasosExcel; }
+}, 800);
 
 </script>
 </body>
