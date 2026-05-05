@@ -1562,15 +1562,25 @@ document.addEventListener("DOMContentLoaded", () => {
         const v = inp.value.trim();
         if (v) { invAddScan(v); inp.value = ""; }
       };
+      const submitMulti = (v) => {
+        // Divide multiples de 13 en EANs individuales
+        for (let i = 0; i < v.length; i += 13) invAddScan(v.substring(i, i + 13));
+        inp.value = "";
+      };
       inp.addEventListener("keydown", (e) => {
         if (e.key === "Enter") { e.preventDefault(); clearTimeout(invDebounce); submitInv(); }
       });
-      // Auto-submit cuando es EAN valido (8+ digitos) y hay 80ms sin nueva entrada (pistola sin Enter)
       inp.addEventListener("input", (e) => {
         clearTimeout(invDebounce);
         const v = inp.value.trim();
-        if (v.length >= 8 && /^[0-9]+$/.test(v)) {
-          invDebounce = setTimeout(submitInv, 80);
+        if (!/^[0-9]+$/.test(v)) return;
+        // Caso: rafaga de N EANs de 13 digitos pegados
+        if (v.length >= 13 && v.length % 13 === 0) { submitMulti(v); return; }
+        // EAN-13 estandar: submit instantaneo
+        if (v.length === 13) { submitInv(); return; }
+        // Otros tamanos validos (8/12/14): esperar 200ms por si llegan mas digitos
+        if (v.length === 8 || v.length === 12 || v.length === 14) {
+          invDebounce = setTimeout(submitInv, 200);
         }
       });
     }
