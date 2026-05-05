@@ -994,9 +994,12 @@ function renderCentralTraspasos() {
   if (selAll) {
     selAll.checked = false;
     selAll.onchange = () => {
-      $(".tra-check").forEach(c => c.checked = selAll.checked);
+      $$(".tra-check").forEach(c => c.checked = selAll.checked);
     };
   }
+  // Hook export al renderizar
+  const expBtn = document.getElementById("btn-export-traspasos");
+  if (expBtn) expBtn.onclick = exportTraspasosExcel;
 }
 
 // =====================================================
@@ -1507,7 +1510,7 @@ async function renderInventario() {
   } else {
     $("#inv-pane-central").classList.add("hidden");
     $("#inv-pane-centro").classList.remove("hidden");
-    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v33</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
+    $("#inv-header").innerHTML = '<div><h3 class="text-base font-medium text-stone-900">Inventario de tu centro <span class="text-[10px] font-normal text-stone-400">v34</span></h3><p class="text-xs text-stone-500">Escanea cada caja con la pistola. Si repites EAN suma autom\u00e1ticamente.</p></div>';
     await loadOrCreateBorrador();
     pintarInvScan();
     setTimeout(() => $("#inv-scan-input") && $("#inv-scan-input").focus(), 100);
@@ -1809,7 +1812,7 @@ async function exportInventariosExcel() {
 
 // ====== EXPORTAR TRASPASOS A EXCEL ======
 async function exportTraspasosExcel() {
-  const selectedIds = $(".tra-check:checked").map(c => c.dataset.id);
+  const selectedIds = $$(".tra-check:checked").map(c => c.dataset.id);
   let q = sb.from("albaranes_con_total")
     .select("*, lineas:lineas_albaran(ean, referencia, cantidad)")
     .eq("tipo", "TRASPASO")
