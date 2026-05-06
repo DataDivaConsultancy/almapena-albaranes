@@ -40,7 +40,7 @@
   <div id="screen-login" class="bg-white rounded-2xl border border-stone-200 p-8 fade-in hidden">
     <div class="text-center mb-6">
       <div class="text-[10px] tracking-widest text-stone-400 mb-1">ALMA EN PENA</div>
-      <h1 class="text-2xl font-semibold text-stone-900">Albaranes ECI <span class="text-xs text-stone-400 font-normal align-top">v42</span></h1>
+      <h1 class="text-2xl font-semibold text-stone-900">Albaranes ECI <span class="text-xs text-stone-400 font-normal align-top">v43</span></h1>
       <p class="text-sm text-stone-500 mt-2">Introduce tu correo para entrar.</p>
     </div>
 
@@ -884,80 +884,137 @@ function renderCentralEnvios() {
   if (expBtn) expBtn.onclick = exportEnviosFiltered;
 }
 
-// Carga de Excel
+// Carga de Excel de envios (formato real ECI: cliente, delegacion, nomdelegacion, albaran, total_pares, fecha_envio)
 $("#file-excel").addEventListener("change", async (ev) => {
   const file = ev.target.files[0]; if (!file) return;
   try {
     const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
-    const norm = rows.map(r => {
-      const k = Object.fromEntries(Object.entries(r).map(([k,v]) => [k.toLowerCase().trim(), v]));
-      let f = k.fecha;
-      if (f instanceof Date) f = f.toISOString().slice(0,10);
-      else if (typeof f === "number") f = new Date(Math.round((f - 25569) * 86400 * 1000)).toISOString().slice(0,10);
-      else if (typeof f === "string" && f.includes("/")) {
-        const [d,m,y] = f.split("/"); f = `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
-      }
-      return {
-        fecha: f, albaran: String(k.albaran || k["albarán"] || "").trim(),
-        centro: String(k.centro).trim(), ean: String(k.ean).trim(),
-        referencia: String(k.referencia).trim(), cantidad: parseInt(k.cantidad)||0,
-      };
-    }).filter(r => r.albaran && r.centro && r.ean);
 
-    // Resolver centros (nombre → id)
-    const centroByNombre = Object.fromEntries(state.centros.map(c => [c.nombre, c.id]));
-    const centrosNoEncontrados = [...new Set(norm.map(r => r.centro).filter(c => !centroByNombre[c]))];
-    if (centrosNoEncontrados.length) {
-      showToast("✗ Centros no encontrados: " + centrosNoEncontrados.join(", "), "error");
+    // Parser de fecha: admite Date, numero serial Excel, "DD-Mon-YY", "YYYY-MM-DD" o "DD/MM/YYYY"
+    const MESES_ES = {ene:"01",feb:"02",mar:"03",abr:"04",may:"05",jun:"06",jul:"07",ago:"08",sep:"09",oct:"10",nov:"11",dic:"12",
+                      jan:"01",feb_en:"02",apr:"04",aug:"08",dec:"12"};
+    function parseFecha(v) {
+      if (!v) return null;
+      if (v instanceof Date) return v.toISOString().slice(0,10);
+      if (typeof v === "number") return new Date(Math.round((v - 25569) * 86400 * 1000)).toISOString().slice(0,10);
+      const s = String(v).trim();
+      // "05-May-26 00:00:00" o "05-May-26"
+      const m1 = s.match(/^(\d{1,2})[\-\/]([A-Za-z]{3})[\-\/](\d{2,4})/);
+      if (m1) {
+        const dd = m1[1].padStart(2,"0");
+        const mes = m1[2].toLowerCase().substring(0,3);
+        const mesMap = {ene:"01",feb:"02",mar:"03",abr:"04",may:"05",jun:"06",jul:"07",ago:"08",sep:"09",oct:"10",nov:"11",dic:"12",
+                        jan:"01",apr:"04",aug:"08",dec:"12"};
+        const mm = mesMap[mes] || "01";
+        let yy = m1[3]; if (yy.length === 2) yy = (parseInt(yy) >= 50 ? "19" : "20") + yy;
+        return yy + "-" + mm + "-" + dd;
+      }
+      // "YYYY-MM-DD"
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+      // "DD/MM/YYYY"
+      if (s.includes("/")) {
+        const [d,m,y] = s.split("/");
+        return y + "-" + String(m).padStart(2,"0") + "-" + String(d).padStart(2,"0");
+      }
+      return null;
+    }
+
+    // Normalizar filas
+    const norm = rows.map(r => {
+      const k = Object.fromEntries(Object.entries(r).map(([kk,vv]) => [String(kk).toLowerCase().trim(), vv]));
+      return {
+        cliente:        parseInt(k.cliente)        || null,
+        delegacion:     parseInt(k.delegacion)     || null,
+        nomdelegacion:  String(k.nomdelegacion || "").trim(),
+        albaran:        String(k.albaran || k["albarán"] || "").trim(),
+        total_pares:    parseInt(k.total_pares)    || 0,
+        fecha:          parseFecha(k.fecha_envio || k.fecha),
+      };
+    }).filter(r => r.cliente && r.delegacion && r.albaran);
+
+    if (norm.length === 0) {
+      showToast("✗ Excel vacio o sin columnas validas (cliente, delegacion, albaran)", "error");
       ev.target.value = ""; return;
     }
 
-    // Agrupar por albarán
-    const agrupados = {};
-    norm.forEach(r => {
-      if (!agrupados[r.albaran]) {
-        agrupados[r.albaran] = {
-          num_albaran: r.albaran, tipo: "ENVIO", fecha_envio: r.fecha,
-          centro_destino_id: centroByNombre[r.centro], lineas: [],
-        };
+    // Cargar centros existentes y construir indice por (cliente, delegacion)
+    const { data: centros } = await sb.from("centros").select("id, codigo, nombre, codigo_cliente, delegacion");
+    const mapaCD = {};
+    (centros || []).forEach(c => {
+      if (c.codigo_cliente != null && c.delegacion != null) {
+        mapaCD[c.codigo_cliente + "|" + c.delegacion] = c.id;
       }
-      agrupados[r.albaran].lineas.push({ ean: r.ean, referencia: r.referencia, cantidad: r.cantidad });
     });
 
-    // Insertar en Supabase (upsert por num_albaran)
-    let okCount = 0, errCount = 0;
-    for (const alb of Object.values(agrupados)) {
-      const { lineas, ...cabecera } = alb;
-      const { data: existing } = await sb.from("albaranes")
-        .select("id, fecha_recepcion")
-        .eq("num_albaran", cabecera.num_albaran)
-        .maybeSingle();
-
-      let albId;
-      if (existing) {
-        // No tocamos fecha_recepcion ni incidencia si ya estaba
-        const { error } = await sb.from("albaranes")
-          .update({ fecha_envio: cabecera.fecha_envio, centro_destino_id: cabecera.centro_destino_id })
-          .eq("id", existing.id);
-        if (error) { errCount++; continue; }
-        albId = existing.id;
-        // Borrar líneas viejas
-        await sb.from("lineas_albaran").delete().eq("albaran_id", albId);
-      } else {
-        const { data, error } = await sb.from("albaranes").insert(cabecera).select("id").single();
-        if (error) { errCount++; continue; }
-        albId = data.id;
+    // Auto-crear centros que no existan (mapeo grabado en BD)
+    const centrosNuevos = [];
+    const centrosVistos = new Set();
+    norm.forEach(r => {
+      const key = r.cliente + "|" + r.delegacion;
+      if (!mapaCD[key] && !centrosVistos.has(key)) {
+        centrosVistos.add(key);
+        const codigo = "ECI-" + r.cliente + "-" + String(r.delegacion).padStart(3,"0");
+        centrosNuevos.push({
+          codigo, nombre: r.nomdelegacion || codigo,
+          codigo_cliente: r.cliente, delegacion: r.delegacion,
+          nombre_delegacion: r.nomdelegacion || null,
+          activo: true,
+        });
       }
-      const lineasInsert = lineas.map(l => ({ ...l, albaran_id: albId }));
-      const { error: linError } = await sb.from("lineas_albaran").insert(lineasInsert);
-      if (linError) errCount++; else okCount++;
+    });
+
+    if (centrosNuevos.length > 0) {
+      const { data: insertados, error: errC } = await sb.from("centros")
+        .upsert(centrosNuevos, { onConflict: "codigo" })
+        .select("id, codigo_cliente, delegacion");
+      if (errC) {
+        showToast("✗ Error creando centros nuevos: " + errC.message, "error");
+        ev.target.value = ""; return;
+      }
+      (insertados || []).forEach(c => {
+        if (c.codigo_cliente != null && c.delegacion != null) {
+          mapaCD[c.codigo_cliente + "|" + c.delegacion] = c.id;
+        }
+      });
     }
 
-    showToast(`✓ ${okCount} albaranes importados${errCount ? ` (${errCount} errores)` : ""}`);
+    // Insertar / actualizar albaranes (1 fila Excel = 1 albaran, sin lineas EAN)
+    let okIns = 0, okUpd = 0, errCount = 0;
+    for (const r of norm) {
+      const centro_id = mapaCD[r.cliente + "|" + r.delegacion];
+      if (!centro_id) { errCount++; continue; }
+      const cabecera = {
+        num_albaran: r.albaran,
+        tipo: "ENVIO",
+        fecha_envio: r.fecha || (new Date()).toISOString().slice(0,10),
+        centro_destino_id: centro_id,
+        total_pares: r.total_pares || null,
+      };
+      const { data: existing } = await sb.from("albaranes")
+        .select("id").eq("num_albaran", cabecera.num_albaran).maybeSingle();
+      if (existing) {
+        const { error } = await sb.from("albaranes")
+          .update({ fecha_envio: cabecera.fecha_envio,
+                    centro_destino_id: cabecera.centro_destino_id,
+                    total_pares: cabecera.total_pares })
+          .eq("id", existing.id);
+        if (error) { errCount++; console.warn("[ALB UPD]", r, error); } else okUpd++;
+      } else {
+        const { error } = await sb.from("albaranes").insert(cabecera);
+        if (error) { errCount++; console.warn("[ALB INS]", r, error); } else okIns++;
+      }
+    }
+
+    let msg = "✓ " + okIns + " nuevos, " + okUpd + " actualizados";
+    if (centrosNuevos.length) msg += " · " + centrosNuevos.length + " centro(s) creado(s)";
+    if (errCount)             msg += " (" + errCount + " errores)";
+    showToast(msg, errCount ? "error" : "ok");
+    await cargarCentros();
     await cargarEnvios(); renderCentralEnvios();
   } catch (err) {
     showToast("✗ Error leyendo Excel: " + err.message, "error");
+    console.error(err);
   } finally { ev.target.value = ""; }
 });
 
@@ -965,13 +1022,12 @@ $("#btn-refresh-envios").onclick = async () => { await cargarEnvios(); renderCen
 
 $("#btn-download-template").onclick = () => {
   const data = [
-    ["fecha","albaran","centro","ean","referencia","cantidad"],
-    [today(),"ENV-2026-0100","ECI Castellana - Calzado Mujer","8412345000017","AP001-37-NEG",4],
-    [today(),"ENV-2026-0100","ECI Castellana - Calzado Mujer","8412345000024","AP001-38-NEG",6],
-    [today(),"ENV-2026-0101","ECI Marbella Puerto Banús","8412345000031","AP002-38-CAM",3],
+    ["cliente","delegacion","nomdelegacion","albaran","total_pares","fecha_envio"],
+    [9270, 4, "ECI CORNER - VALENCIA SOROLLA 0008", 271645, 41, "05-May-26"],
+    [9270, 1, "ECI CORNER - T697 - MARBELLA",      271646, 47, "05-May-26"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws["!cols"] = [{wch:12},{wch:18},{wch:32},{wch:18},{wch:18},{wch:10}];
+  ws["!cols"] = [{wch:10},{wch:11},{wch:38},{wch:12},{wch:12},{wch:14}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Envios");
   XLSX.writeFile(wb, "AlmaEnPena_Plantilla_Envios.xlsx");
@@ -2064,12 +2120,12 @@ function descargarPlantillaUsuarios() {
 
 function descargarPlantillaCentros() {
   const data = [
-    ["codigo","nombre","ciudad","direccion","responsable","email","telefono","activo"],
-    ["ECI-MAD-CAS","ECI Castellana - Calzado Mujer","Madrid","Castellana 85","","","","SI"],
-    ["ECI-MAD-GOY","ECI Goya - Calzado Mujer","Madrid","Goya 76","","","","SI"],
+    ["codigo","nombre","codigo_cliente","delegacion","nombre_delegacion","ciudad","direccion","responsable","email","telefono","activo"],
+    ["ECI-9270-001","ECI Marbella - Calzado",9270,1,"ECI CORNER - T697 - MARBELLA","Marbella","","","","","SI"],
+    ["ECI-9270-004","ECI Valencia Sorolla - Calzado",9270,4,"ECI CORNER - VALENCIA SOROLLA 0008","Valencia","","","","","SI"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(data);
-  ws["!cols"] = [{wch:18},{wch:36},{wch:14},{wch:24},{wch:22},{wch:24},{wch:14},{wch:8}];
+  ws["!cols"] = [{wch:18},{wch:32},{wch:14},{wch:11},{wch:38},{wch:14},{wch:24},{wch:22},{wch:24},{wch:14},{wch:8}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Centros");
   XLSX.writeFile(wb, "AlmaEnPena_Plantilla_Centros.xlsx");
@@ -2090,8 +2146,13 @@ async function bulkUploadCentros(file) {
           .replace(/[^\w]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
           .substring(0, 40);
       }
+      const codCli = parseInt(k.codigo_cliente) || null;
+      const dele   = parseInt(k.delegacion) || null;
       return {
         codigo, nombre,
+        codigo_cliente: codCli,
+        delegacion: dele,
+        nombre_delegacion: cleanStr(k.nombre_delegacion) || null,
         ciudad: cleanStr(k.ciudad) || null,
         direccion: cleanStr(k.direccion) || null,
         responsable: cleanStr(k.responsable) || null,
