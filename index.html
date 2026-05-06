@@ -40,7 +40,7 @@
   <div id="screen-login" class="bg-white rounded-2xl border border-stone-200 p-8 fade-in hidden">
     <div class="text-center mb-6">
       <div class="text-[10px] tracking-widest text-stone-400 mb-1">ALMA EN PENA</div>
-      <h1 class="text-2xl font-semibold text-stone-900">Albaranes ECI <span class="text-xs text-stone-400 font-normal align-top">v41</span></h1>
+      <h1 class="text-2xl font-semibold text-stone-900">Albaranes ECI <span class="text-xs text-stone-400 font-normal align-top">v42</span></h1>
       <p class="text-sm text-stone-500 mt-2">Introduce tu correo para entrar.</p>
     </div>
 
@@ -56,7 +56,7 @@
     <div id="login-msg" class="hidden mt-4 max-w-sm mx-auto px-3 py-2.5 rounded-lg text-sm"></div>
 
     <div class="mt-8 text-[11px] text-stone-400 text-center">
-      <div>Tu correo tiene que estar dado de alta. Si no, pide a Horacio que te añada.</div>
+      <div>Tu correo tiene que estar dado de alta. Si no, pide a tu responsable que te añada.</div>
     </div>
   </div>
   <!-- ========== LOADING ========== -->
@@ -554,7 +554,7 @@ async function onLoggedIn(email) {
   if (error || !mapeos || mapeos.length === 0) {
     localStorage.removeItem("almapena_email");
     showScreen("screen-login");
-    showLoginMsg("Tu correo (" + email + ") no está dado de alta. Contacta con Horacio.", "error");
+    showLoginMsg("Tu correo (" + email + ") no está dado de alta. Contacta con tu responsable.", "error");
     return;
   }
 
@@ -619,7 +619,7 @@ $("#form-login").onsubmit = async e => {
   if (error) {
     showLoginMsg("✗ " + error.message, "error");
   } else if (!filas || filas.length === 0) {
-    showLoginMsg("✗ Ese correo no está dado de alta. Contacta con Horacio.", "error");
+    showLoginMsg("✗ Ese correo no está dado de alta. Contacta con tu responsable.", "error");
   } else {
     localStorage.setItem("almapena_email", email);
     await onLoggedIn(email);
