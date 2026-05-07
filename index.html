@@ -40,7 +40,7 @@
   <div id="screen-login" class="bg-white rounded-2xl border border-stone-200 p-8 fade-in hidden">
     <div class="text-center mb-6">
       <div class="text-[10px] tracking-widest text-stone-400 mb-1">ALMA EN PENA</div>
-      <h1 class="text-2xl font-semibold text-stone-900">Albaranes ECI <span class="text-xs text-stone-400 font-normal align-top">v43</span></h1>
+      <h1 class="text-2xl font-semibold text-stone-900">Albaranes ECI <span class="text-xs text-stone-400 font-normal align-top">v44</span></h1>
       <p class="text-sm text-stone-500 mt-2">Introduce tu correo para entrar.</p>
     </div>
 
@@ -419,6 +419,11 @@
             Cargar Excel
             <input id="file-bulk-centros" type="file" accept=".xlsx,.xls,.csv" class="hidden">
           </label>
+          <button id="btn-export-centros" type="button"
+            class="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+            Exportar Excel
+          </button>
           <button id="btn-centro-add" class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
             Nuevo centro
@@ -2274,6 +2279,38 @@ async function bulkUploadUsuarios(file) {
   } catch (e) { showToast("✗ Error leyendo Excel: " + e.message, "error"); }
 }
 
+
+async function exportarCentrosXlsx() {
+  const { data: centros, error } = await sb.from("centros")
+    .select("codigo, nombre, codigo_cliente, delegacion, nombre_delegacion, ciudad, direccion, responsable, email, telefono, activo")
+    .order("codigo");
+  if (error) { showToast("✗ " + error.message, "error"); return; }
+
+  const rows = [["codigo","nombre","codigo_cliente","delegacion","nombre_delegacion","ciudad","direccion","responsable","email","telefono","activo"]];
+  (centros || []).forEach(c => {
+    rows.push([
+      c.codigo || "",
+      c.nombre || "",
+      c.codigo_cliente != null ? c.codigo_cliente : "",
+      c.delegacion != null ? c.delegacion : "",
+      c.nombre_delegacion || "",
+      c.ciudad || "",
+      c.direccion || "",
+      c.responsable || "",
+      c.email || "",
+      c.telefono || "",
+      c.activo ? "SI" : "NO",
+    ]);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = [{wch:18},{wch:32},{wch:14},{wch:11},{wch:38},{wch:14},{wch:24},{wch:22},{wch:26},{wch:14},{wch:8}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Centros");
+  XLSX.writeFile(wb, "AlmaEnPena_Centros_" + today() + ".xlsx");
+  showToast("✓ " + (centros || []).length + " centro(s) exportados");
+}
+
 // Hook handlers cuando entran a admin (renderAdmin) y al cambiar subtab
 function hookBulkButtons() {
   const t1 = document.getElementById("btn-tpl-usuarios");
@@ -2289,6 +2326,8 @@ function hookBulkButtons() {
       e.target.value = "";
     });
   }
+  const e1 = document.getElementById("btn-export-centros");
+  if (e1 && !e1._wired) { e1._wired = true; e1.onclick = exportarCentrosXlsx; }
   const f2 = document.getElementById("file-bulk-centros");
   if (f2 && !f2._wired) {
     f2._wired = true;
